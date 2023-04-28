@@ -1,6 +1,7 @@
 import json
 
 import torch
+import random
 from torch.utils.data import Dataset
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -44,6 +45,7 @@ class AlpacaDataset(Dataset):
                     exit(0)
             for item in json_data:
                 result_data.append(item)
+            random.shuffle(result_data)
         return result_data
 
     def create_prompt(self, instruction, input):
