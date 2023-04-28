@@ -1,0 +1,14 @@
+.idea
+*.iml
+/finetuning/cache_data/
+/data/*
+/bids_book_industry_server.py
+/model/pytorch_model-00001-of-00008.bin
+/model/pytorch_model-00002-of-00008.bin
+/model/pytorch_model-00003-of-00008.bin
+/model/pytorch_model-00004-of-00008.bin
+/model/pytorch_model-00005-of-00008.bin
+/model/pytorch_model-00006-of-00008.bin
+/model/pytorch_model-00007-of-00008.bin
+/model/pytorch_model-00008-of-00008.bin
+/finetuning/validate_dataset/
