@@ -44,13 +44,12 @@ def set_args():
 def get_response_by_bot(input_txt, session, bot_type, sub_type):
     # 这里需要解决，每个用户不能连续对话的问题,从数据库里获取这个用户前三个问题和回答是什么
     history = []
-    historyQATuple = dbutil.query_question_list_by_session(session, bot_type, sub_type)
-    calc_len = len(input_txt)
+    historyQATuple = dbutil.query_question_list_by_session(session, bot_type, sub_type, 3)
     for tmp in historyQATuple:
         qaTuple = (tmp[0], tmp[1])
-        calc_len = calc_len + len(tmp[0]) + len(tmp[1])
         history.append(qaTuple)
-    response, history = model.chat(tokenizer, input_txt, history=history, max_length=calc_len * 5)
+    history.reverse()
+    response, history2 = model.chat(tokenizer, input_txt, history=history, max_length=1024)
     torch.cuda.empty_cache()
     return response
 

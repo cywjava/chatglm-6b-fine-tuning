@@ -19,15 +19,11 @@ def main():
     model = AutoModel.from_pretrained(PRE_TRAINED_MODEL_PATH, trust_remote_code=True).cuda()
     model.to("cuda")
     history = []
-    calc_len = 0
     with torch.autocast("cuda"):
         while True:
             try:
                 input_txt = input("user:")
-                response, history = model.chat(tokenizer, input_txt, history=history, max_length=calc_len * 10)
-                qaTuple = (input_txt, response)
-                calc_len = calc_len + len(qaTuple[0]) + len(qaTuple[1])
-                history.append(qaTuple)
+                response, history = model.chat(tokenizer, input_txt, history=history, max_length=1024)
                 print("bot:", response)
                 torch.cuda.empty_cache()
             except Exception as e:
