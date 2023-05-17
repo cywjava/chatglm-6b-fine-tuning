@@ -67,7 +67,7 @@ https://github.com/yuanzhoulvpi2017/zero_nlp/
 + start_chat_server.sh 启动chat_server.py
 + data 训练数据集
 + model 官方chatglm-6b模型文件夹,这里面不包含.bin文件，需要将bin复制进来，当然这个目录你也可以放到其它任意位置。
-+ finetuning 训练代码目录（支持多卡，在运行训练代码前，先export CUDA_VISIBLE_DEVICE="0,1,2,3",这里用4张卡 ）
++ finetuning 训练代码目录（支持多卡，在运行训练代码前，先export CUDA_DEVICE_ORDER="PCI_BUS_ID" export CUDA_VISIBLE_DEVICE="0,1,2,3",这里用4张卡 ）
 + finetune_util 工具类
   ~~~
   训练需要安装如下依赖
