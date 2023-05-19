@@ -7,10 +7,10 @@ dbutil.print_db_info()
 
 
 def test_bik():
-    question_list = dbutil.query_question_by_sqid("bids_book_20230511212152", "chenyw8", "8")
+    question_list = dbutil.query_question_by_sqid("bids_book_20230519094704", "chenyw8", "8")
     answer1 = question_list[1]
     print(answer1)
-    content_items = find_response_items(answer1)
+    content_items = find_response_items(answer1, False)
     print(content_items)
 
 
