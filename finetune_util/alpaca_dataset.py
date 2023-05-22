@@ -26,12 +26,13 @@ class AlpacaDataset(Dataset):
         self.max_dst_length = 512
         # 定义一些常量（chen.yiwan）
         self.bos = tokenizer.bos_token_id
-        self.eop = tokenizer.eop_token_id
+        # self.eop = tokenizer.eop_token_id
         self.eos = tokenizer.eos_token_id
-        self.unk = tokenizer.unk_token_id
+        # self.unk = tokenizer.unk_token_id
         self.pad = tokenizer.pad_token_id
         self.mask = tokenizer.mask_token_id
-        self.gmask = tokenizer.sp_tokenizer[tokenizer.gMASK_token]
+        # self.gmask = tokenizer.sp_tokenizer[tokenizer.gMASK_token]
+        self.gmask = 130001
 
     @staticmethod
     def load_json(file_list):
@@ -77,8 +78,10 @@ class AlpacaDataset(Dataset):
             add_special_tokens=False
         )
 
-        inputs = prompt + completion + [self.eop]
-        labels = [-100] * len(prompt) + completion + [self.eop]
+        # inputs = prompt + completion + [self.eop]
+        inputs = prompt + completion + [self.eos]
+        # labels = [-100] * len(prompt) + completion + [self.eop]
+        labels = [-100] * len(prompt) + completion + [self.eos]
 
         inputs = torch.tensor(inputs, dtype=torch.long, device=device)
         labels = torch.tensor(labels, dtype=torch.long, device=device)

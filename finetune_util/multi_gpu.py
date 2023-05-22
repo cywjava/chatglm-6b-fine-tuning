@@ -5,8 +5,7 @@ import torch
 
 class MultiGPU:
     """
-    此版代码多卡训练使用的是老版的模型，模型文件与新版不一样
-    需要在fine_tuning_chatglm6b.py中，加载get_peft_model 后调用：MultiGPU().set_model_to_gpus(model)，并且去掉加载模型时的device_map="auto"
+    多卡训练
     author:chen.yiwan
     date:2022-04-26
     """
@@ -14,8 +13,7 @@ class MultiGPU:
     gpus = []
 
     def __init__(self):
-        environ = os.environ
-        cuda_visible_devices = environ.get("CUDA_VISIBLE_DEVICES")
+        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
         print("CUDA_VISIBLE_DEVICES:", cuda_visible_devices)
         if torch.cuda.is_available():
             if cuda_visible_devices is None or cuda_visible_devices == "":
