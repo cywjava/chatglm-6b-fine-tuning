@@ -43,7 +43,8 @@ def start_train(finetune_args):
     train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
-    eval_dataset = AlpacaDataset(AlpacaDataset.load_json(TrainUtil.build_validate_file(train_file_list, 0.2)), tokenizer)
+    eval_dataset = AlpacaDataset(AlpacaDataset.load_json(TrainUtil.build_validate_file(train_file_list, 0.2)),
+                                 tokenizer)
 
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,
@@ -62,6 +63,8 @@ def start_train(finetune_args):
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
         remove_unused_columns=False,
+        eval_steps=500,
+        logging_steps=500,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
         load_best_model_at_end=True
