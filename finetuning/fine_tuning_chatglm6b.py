@@ -17,9 +17,6 @@ from finetune_util.train_util import TrainUtil
 
 
 def start_train(finetune_args):
-    global tokenizer
-    global model
-    print("run_args is:", finetune_args)
     if torch.cuda.is_available():
         model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).half().cuda()
     else:
@@ -39,37 +36,35 @@ def start_train(finetune_args):
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
 
-    train_util = TrainUtil(run_args, model, tokenizer)
+    train_util = TrainUtil(finetune_args, model, tokenizer)
     train_util.print_debug()
 
     # 生成训练集和测试集
-    train_file_list = glob(pathname=run_args.dataset_path)
+    train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
-    valid_file_list = TrainUtil.build_validate_file(train_file_list, 0.2)
-    eval_dataset = AlpacaDataset(AlpacaDataset.load_json(valid_file_list), tokenizer)
+    eval_dataset = AlpacaDataset(AlpacaDataset.load_json(TrainUtil.build_validate_file(train_file_list, 0.2)), tokenizer)
 
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,
         overwrite_output_dir=True,
         per_device_train_batch_size=finetune_args.train_batch_size,
         per_device_eval_batch_size=finetune_args.eval_batch_size,
+        do_eval=finetune_args.do_eval,
         evaluation_strategy="steps",
-        eval_steps=100,
-        logging_steps=100,
         gradient_accumulation_steps=1,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
         lr_scheduler_type="cosine",
         learning_rate=finetune_args.learning_rate,
-        save_steps=100,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
         remove_unused_columns=False,
         ignore_data_skip=True,
-        dataloader_pin_memory=False
+        dataloader_pin_memory=False,
+        load_best_model_at_end=True
     )
 
     trainer = LoraTrainer(
@@ -82,6 +77,7 @@ def start_train(finetune_args):
     )
     print("start train...")
     trainer.train()
+    trainer.save_model(finetune_args.check_points_path + os.sep + "final_model")
     print("train finished...")
 
 
@@ -95,6 +91,7 @@ def set_args():
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
+    parser.add_argument('--do_eval', action='store_true', help='do_eval')
     parser.add_argument('--fp16', action='store_true', help='fp16')
     parser.add_argument('--fp16_opt_level', default="O2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
@@ -102,6 +99,4 @@ def set_args():
 
 
 if __name__ == '__main__':
-    global run_args
-    run_args = set_args()
-    start_train(run_args)
+    start_train(set_args())
