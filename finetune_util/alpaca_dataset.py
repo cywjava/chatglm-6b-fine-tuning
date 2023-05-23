@@ -1,5 +1,4 @@
 import json
-
 import torch
 import random
 from torch.utils.data import Dataset
@@ -47,7 +46,7 @@ class AlpacaDataset(Dataset):
             for item in json_data:
                 result_data.append(item)
             random.shuffle(result_data)
-        return result_data
+        return list(result_data)
 
     def create_prompt(self, instruction, input):
         return self.PROMPT_PATTERN.format(instruction, input), self.SEP_PATTERN

@@ -7,8 +7,7 @@ import sys
 
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
-from transformers import AutoTokenizer, AutoModel
-from transformers import TrainingArguments
+from transformers import AutoTokenizer, AutoModel, TrainingArguments
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
@@ -22,7 +21,7 @@ def start_train(finetune_args):
     global model
     print("run_args is:", finetune_args)
     if torch.cuda.is_available():
-        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
+        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).half().cuda()
     else:
         model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).float()
     tokenizer = AutoTokenizer.from_pretrained(finetune_args.model_path, trust_remote_code=True)
@@ -50,9 +49,6 @@ def start_train(finetune_args):
     valid_file_list = TrainUtil.build_validate_file(train_file_list, 0.2)
     eval_dataset = AlpacaDataset(AlpacaDataset.load_json(valid_file_list), tokenizer)
 
-    print("train data size:", len(train_dataset.data))
-    print("eval data size:", len(eval_dataset.data))
-
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,
         overwrite_output_dir=True,
@@ -66,10 +62,10 @@ def start_train(finetune_args):
         weight_decay=0.1,
         warmup_steps=1_000,
         lr_scheduler_type="cosine",
-        learning_rate=1e-4,
+        learning_rate=finetune_args.learning_rate,
         save_steps=100,
         fp16=finetune_args.fp16,
-        tf32=finetune_args.tf32,
+        fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
         remove_unused_columns=False,
         ignore_data_skip=True,
@@ -92,16 +88,15 @@ def start_train(finetune_args):
 def set_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_path', default='../data/*', type=str, required=False, help='数据集目录')
-    parser.add_argument('--model_path', default="../model/", type=str, required=False,
-                        help='原始发布的预训练模型目录')
+    parser.add_argument('--model_path', default="../model/", type=str, required=False, help='原始发布的预训练模型目录')
     parser.add_argument('--check_points_path', default="../check_points_path", type=str, required=False,
                         help='微调check_points_path保存目录')
-    parser.add_argument('--epochs', default=50, type=int, required=False,
-                        help='训练epochs')
+    parser.add_argument('--epochs', default=50, type=int, required=False, help='训练epochs')
+    parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--fp16', action='store_true', help='fp16')
-    parser.add_argument('--tf32', action='store_true', help='tf32')
+    parser.add_argument('--fp16_opt_level', default="O2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     return parser.parse_args()
 
