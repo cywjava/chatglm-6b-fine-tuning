@@ -12,7 +12,6 @@ from transformers import AutoTokenizer, AutoModel, TrainingArguments
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
-from finetune_util.multi_gpu import MultiGPU
 from finetune_util.train_util import TrainUtil
 
 
@@ -31,7 +30,7 @@ def start_train(finetune_args):
         target_modules=['query_key_value']
     )
     model = get_peft_model(model, peft_config)
-    MultiGPU().set_model_to_gpus(model)
+
     model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
