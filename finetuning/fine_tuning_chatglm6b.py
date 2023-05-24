@@ -67,7 +67,7 @@ def start_train(finetune_args):
         logging_steps=500,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
-        load_best_model_at_end=True
+        load_best_model_at_end=True if finetune_args.do_eval else False
     )
 
     trainer = LoraTrainer(
