@@ -12,3 +12,6 @@
 /model/pytorch_model-00007-of-00008.bin
 /model/pytorch_model-00008-of-00008.bin
 /finetuning/validate_dataset/
+/check_points
+/logs
+
