@@ -14,6 +14,7 @@ from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
 from finetune_util.train_util import TrainUtil
 import torch.distributed as dist
+from torch.utils.data import DataLoader
 
 """
 export CUDA_VISIBLE_DEVICES=0,2
@@ -64,10 +65,11 @@ def start_train(finetune_args):
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=finetune_args.train_batch_size,
-                                                    sampler=train_sampler)
+                                                    sampler=train_sampler, drop_last=True)
+
     eval_sampler = torch.utils.data.distributed.DistributedSampler(eval_dataset)
     eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset, batch_size=finetune_args.eval_batch_size,
-                                                   sampler=eval_sampler)
+                                                   sampler=eval_sampler, drop_last=True)
 
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,
@@ -104,6 +106,7 @@ def start_train(finetune_args):
     )
     print("start train...")
     trainer.train()
+    # train_sampler.set_epoch(epoch)
     trainer.save_model(finetune_args.check_points_path + os.sep + "final_model")
     print("train finished...")
 
