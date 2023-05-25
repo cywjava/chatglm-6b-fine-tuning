@@ -70,37 +70,6 @@ class TrainUtil:
             "position_ids": position_ids,
         }
 
-    @staticmethod
-    def build_validate_file(all_file_list, validate_percent):
-        """
-        从训练集里每个文件里抽n%的数据做为验证集数据，生成为文件 ，放在 validate_dataset目录下
-        :param all_file_list:
-        :param validate_percent:
-        :return:
-        """
-        random.seed(42)
-        test_file_list = []
-        validate_path = "./validate_dataset"
-        if os.path.exists(validate_path):
-            shutil.rmtree(validate_path)
-        os.makedirs(validate_path)
-        idx = 0
-        for temp_train_file in all_file_list:
-            validate_json = []
-            with open(temp_train_file, "r", encoding="utf-8") as jsonf:
-                train_json = json.load(jsonf)
-            json_count = len(train_json)
-            validate_count = 1 if int(json_count * validate_percent) <= 1 else int(json_count * validate_percent)
-            for t in range(validate_count):
-                validate_json.append(train_json[random.randint(0, json_count - 1)])
-            v_file_path = validate_path + "/" + str(idx) + ".json"
-            with open(v_file_path, "w", encoding="utf-8") as jsonf:
-                json.dump(validate_json, jsonf)
-            test_file_list.append(v_file_path)
-            idx = idx + 1
-        print("生成验证数据集:", ",".join(test_file_list))
-        return test_file_list
-
     def print_debug(self):
         if self.run_args.debug:
             print(self.model)
