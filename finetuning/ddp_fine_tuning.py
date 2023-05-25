@@ -9,6 +9,7 @@ import torch
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
 
+import torch.distributed as dist
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
@@ -30,7 +31,6 @@ def start_train(finetune_args):
         target_modules=['query_key_value']
     )
     model = get_peft_model(model, peft_config)
-
     model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
@@ -61,12 +61,12 @@ def start_train(finetune_args):
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
-        remove_unused_columns=False,
         eval_steps=500,
         logging_steps=500,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
-        load_best_model_at_end=True if finetune_args.do_eval else False
+        load_best_model_at_end=True if finetune_args.do_eval else False,
+        fsdp="full_shard"
     )
 
     trainer = LoraTrainer(
@@ -101,4 +101,7 @@ def set_args():
 
 
 if __name__ == '__main__':
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '5678'
+    dist.init_process_group(backend='nccl', init_method='env://', rank=0, world_size=1)
     start_train(set_args())
