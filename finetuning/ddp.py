@@ -123,7 +123,7 @@ def set_args():
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
     parser.add_argument('--fp16', action='store_true', help='fp16')
-    parser.add_argument('--fp16_opt_level', default="O2", type=str, required=False, help='fp16_opt_level')
+    parser.add_argument('--fp16_opt_level', default="o2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     parser.add_argument('--local_rank', type=int, default=-1)
 
