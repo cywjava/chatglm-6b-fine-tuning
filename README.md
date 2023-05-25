@@ -8,11 +8,20 @@
 #### 在此感谢
 ~~~
 https://github.com/THUDM/ChatGLM-6B
-https://github.com/yuanzhoulvpi2017/zero_nlp/
 ~~~
 
 #### 更新说明
 ---
++ 2023-05-25
+  - 更新最新的模型文件，修改alpaca_dataset,支持新模型训练。
+  - 添加DDP分布式训练代码，目前测试中。
+    - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
+    - 单卡训练耗时12小时
+    - ![img.png](images/img.png)
+    - 使用DDP两卡并行，耗时6小时,效率提升50%.
+    - ![img.png](images/ddp_img.png)
+    
+
 + 2023-04-21 
     - 重构训练时的参数、生成数据集、张量等一系列操作。
     - 重构代码目录，去掉parallel,自动多卡运行

@@ -60,11 +60,12 @@ def start_train(finetune_args):
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
         remove_unused_columns=False,
-        eval_steps=500,
-        logging_steps=500,
+        save_strategy="steps",
+        save_steps=500,
+        eval_steps=100,
+        logging_steps=100,
         ignore_data_skip=True,
-        dataloader_pin_memory=False,
-        load_best_model_at_end=True if finetune_args.do_eval else False
+        dataloader_pin_memory=False
     )
 
     trainer = LoraTrainer(
