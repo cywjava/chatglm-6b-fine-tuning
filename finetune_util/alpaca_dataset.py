@@ -147,3 +147,6 @@ class AlpacaDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+    def eval_data(self, percentage):
+        return random.sample(self.data, int(len(self.data) * percentage))

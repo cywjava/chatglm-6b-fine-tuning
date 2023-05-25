@@ -1,5 +1,6 @@
 # coding=UTF-8
 import argparse
+import random
 from glob import glob
 import os
 
@@ -41,8 +42,7 @@ def start_train(finetune_args):
     train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
-    eval_dataset = AlpacaDataset(AlpacaDataset.load_json(TrainUtil.build_validate_file(train_file_list, 0.2)),
-                                 tokenizer)
+    eval_dataset = train_dataset.eval_data(0.2)
 
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,

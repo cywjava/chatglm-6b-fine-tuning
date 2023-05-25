@@ -60,8 +60,14 @@ def start_train(finetune_args):
     train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
-    eval_dataset = AlpacaDataset(AlpacaDataset.load_json(TrainUtil.build_validate_file(train_file_list, 0.2)),
-                                 tokenizer)
+    eval_dataset = train_dataset.eval_data(0.2)
+
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=finetune_args.train_batch_size,
+                                                    sampler=train_sampler)
+    eval_sampler = torch.utils.data.distributed.DistributedSampler(eval_dataset)
+    eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset, batch_size=finetune_args.eval_batch_size,
+                                                   sampler=eval_sampler)
 
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,
@@ -92,8 +98,8 @@ def start_train(finetune_args):
         model=model,
         tokenizer=tokenizer,
         args=args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=train_data_loader,
+        eval_dataset=eval_data_loader,
         data_collator=train_util.data_collator
     )
     print("start train...")
