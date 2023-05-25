@@ -42,7 +42,7 @@ def start_train(finetune_args):
     train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
-    eval_dataset = train_dataset.eval_data(0.2)
+    eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
 
     args = TrainingArguments(
         output_dir=finetune_args.check_points_path,
