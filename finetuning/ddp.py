@@ -20,15 +20,17 @@ from torch.utils.data import DataLoader
 export CUDA_VISIBLE_DEVICES=0,2
 export WORLD_SIZE=2
 export RANK=0
+export LOCAL_RANK=0
 export MASTER_ADDR=192.168.20.9
 
-python3 -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 20 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0
+python3 -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 --node_rank=0 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 20 --fp16 --fp16_opt_level O2 --do_eval
 """
 
 
 def start_train(finetune_args):
     rank = int(os.environ["RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
+    local_rank = int(os.environ["LOCAL_RANK"])
 
     dist.init_process_group(backend='nccl', init_method="tcp://localhost:29500", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
@@ -52,7 +54,7 @@ def start_train(finetune_args):
     torch.cuda.empty_cache()
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
-    adamwOpt = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
 
     train_util = TrainUtil(finetune_args, model, tokenizer)
     train_util.print_debug()
@@ -77,7 +79,7 @@ def start_train(finetune_args):
         per_device_train_batch_size=finetune_args.train_batch_size,
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
-        evaluation_strategy="steps" if finetune_args.do_eval else "no",
+        evaluation_strategy="epoch" if finetune_args.do_eval else "no",
         gradient_accumulation_steps=4,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
@@ -91,7 +93,6 @@ def start_train(finetune_args):
         logging_steps=500,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
-        load_best_model_at_end=True if finetune_args.do_eval else False,
         ddp_find_unused_parameters=False,
         auto_find_batch_size=True
     )
@@ -100,8 +101,8 @@ def start_train(finetune_args):
         model=model,
         tokenizer=tokenizer,
         args=args,
-        train_dataset=train_data_loader,
-        eval_dataset=eval_data_loader,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         data_collator=train_util.data_collator
     )
     print("start train...")
