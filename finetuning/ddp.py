@@ -9,14 +9,29 @@ import torch
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
 
-import torch.distributed as dist
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
 from finetune_util.train_util import TrainUtil
+import torch.distributed as dist
+
+"""
+export CUDA_VISIBLE_DEVICES=0,2
+export WORLD_SIZE=2
+export RANK=0
+export MASTER_ADDR=192.168.20.9
+
+python3 -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 20 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0
+"""
 
 
 def start_train(finetune_args):
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+
+    dist.init_process_group(backend='nccl', init_method="tcp://localhost:29500", rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
+
     if torch.cuda.is_available():
         model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
     else:
@@ -34,6 +49,9 @@ def start_train(finetune_args):
     model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
+    model.cuda()
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+    adamwOpt = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
 
     train_util = TrainUtil(finetune_args, model, tokenizer)
     train_util.print_debug()
@@ -52,21 +70,22 @@ def start_train(finetune_args):
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
         evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=4,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
-        lr_scheduler_type="cosine",
         learning_rate=finetune_args.learning_rate,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
+        remove_unused_columns=False,
         eval_steps=500,
         logging_steps=500,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
         load_best_model_at_end=True if finetune_args.do_eval else False,
-        fsdp="full_shard"
+        ddp_find_unused_parameters=False,
+        auto_find_batch_size=True
     )
 
     trainer = LoraTrainer(
@@ -97,11 +116,10 @@ def set_args():
     parser.add_argument('--fp16', action='store_true', help='fp16')
     parser.add_argument('--fp16_opt_level', default="O2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
+    parser.add_argument('--local_rank', type=int, default=-1)
+
     return parser.parse_args()
 
 
 if __name__ == '__main__':
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '5678'
-    dist.init_process_group(backend='nccl', init_method='env://', rank=0, world_size=1)
     start_train(set_args())
