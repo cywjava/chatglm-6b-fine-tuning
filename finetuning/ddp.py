@@ -8,6 +8,7 @@ import sys
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
+from torch.optim.lr_scheduler import StepLR, MultiStepLR, LambdaLR, ExponentialLR, CosineAnnealingLR, ReduceLROnPlateau
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
@@ -54,7 +55,6 @@ def start_train(finetune_args):
     torch.cuda.empty_cache()
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
-    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
 
     train_util = TrainUtil(finetune_args, model, tokenizer)
     train_util.print_debug()
@@ -99,8 +99,17 @@ def start_train(finetune_args):
         auto_find_batch_size=True
     )
 
+    len_dataset = len(train_dataset)
+    batch_size = finetune_args.train_batch_size
+    epochs = finetune_args.epochs
+    # 每一个epoch中有多少个step可以根据len(DataLoader)计算：total_steps = len(DataLoader) * epochs
+    total_steps = (len_dataset // batch_size) * epochs if len_dataset % batch_size == 0 else (
+                                                                                                     len_dataset // batch_size + 1) * epochs
+    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
     trainer = LoraTrainer(
         model=model,
+        optimizers=(optimizer, lr_scheduler),
         tokenizer=tokenizer,
         args=args,
         train_dataset=train_dataset,
@@ -121,7 +130,7 @@ def set_args():
     parser.add_argument('--check_points_path', default="../check_points_path", type=str, required=False,
                         help='微调check_points_path保存目录')
     parser.add_argument('--epochs', default=50, type=int, required=False, help='训练epochs')
-    parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
+    parser.add_argument('--learning_rate', default=1e-3, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
