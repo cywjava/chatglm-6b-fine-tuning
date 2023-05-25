@@ -51,7 +51,7 @@ def start_train(finetune_args):
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
         evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=1,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
