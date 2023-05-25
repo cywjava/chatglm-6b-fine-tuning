@@ -20,7 +20,8 @@ https://github.com/THUDM/ChatGLM-6B
     - ![img.png](images/img.png)
     - 使用DDP两卡并行，耗时6小时,效率提升50%.
     - ![img.png](images/ddp_img.png)
-    
+    - tensorboard --logdir /home/train/check_points/runs/May25_16-45-12_localhost.localdomain
+    - ![img.png](images/img_1.png)
 
 + 2023-04-21 
     - 重构训练时的参数、生成数据集、张量等一系列操作。
