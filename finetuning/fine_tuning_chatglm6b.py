@@ -56,6 +56,7 @@ def start_train(finetune_args):
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
+        lr_scheduler_type="linear",
         learning_rate=finetune_args.learning_rate,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
@@ -73,6 +74,7 @@ def start_train(finetune_args):
     lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
     trainer = LoraTrainer(
         model=model,
+        tokenizer=tokenizer,
         optimizers=(optimizer, lr_scheduler),
         args=args,
         train_dataset=train_dataset,

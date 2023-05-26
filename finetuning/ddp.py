@@ -103,8 +103,8 @@ def start_train(finetune_args):
     lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
     trainer = LoraTrainer(
         model=model,
-        optimizers=(optimizer, lr_scheduler),
         tokenizer=tokenizer,
+        optimizers=(optimizer, lr_scheduler),
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
