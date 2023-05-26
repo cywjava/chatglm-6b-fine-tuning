@@ -2,7 +2,6 @@
 import argparse
 from glob import glob
 import os
-import logging
 import sys
 
 import torch
@@ -24,7 +23,10 @@ export RANK=0
 export LOCAL_RANK=0
 export MASTER_ADDR=192.168.20.9
 
-python3 -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 5 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0
+ps -ef|grep ddp|awk '{print $2}'|grep -v 'grep'|xargs kill -9 
+
+nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 50 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0 >> ./logs/ddp2.log 2>&1 &
+
 """
 
 
@@ -34,7 +36,7 @@ def start_train(finetune_args):
     local_rank = int(os.environ["LOCAL_RANK"])
 
     dist.init_process_group(backend='nccl', init_method="tcp://localhost:29500", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
+    torch.cuda.set_device(local_rank)
 
     if torch.cuda.is_available():
         model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
@@ -54,7 +56,7 @@ def start_train(finetune_args):
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
     model.cuda()
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=[local_rank])
 
     train_util = TrainUtil(finetune_args, model, tokenizer)
     train_util.print_debug()
@@ -64,6 +66,8 @@ def start_train(finetune_args):
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
     eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
+    print(f"-----train_dataset:{len(train_dataset)}")
+    print(f"-----eval_dataset:{len(eval_dataset)}")
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, collate_fn=train_util.data_collator,
@@ -102,7 +106,8 @@ def start_train(finetune_args):
     )
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
+
     trainer = LoraTrainer(
         model=model,
         tokenizer=tokenizer,
@@ -112,11 +117,11 @@ def start_train(finetune_args):
         eval_dataset=eval_data_loader.dataset,
         data_collator=train_util.data_collator
     )
-    logging.info("start train...")
+    print("start train...")
     trainer.train()
     # train_sampler.set_epoch(epoch)
     trainer.save_model(finetune_args.check_points_path + os.sep + "final_model")
-    logging.info("train finished...")
+    print("train finished...")
 
 
 def set_args():
@@ -139,7 +144,4 @@ def set_args():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename="./logs/train.log", filemode="w",
-                        format="%(asctime)s %(name)s:%(levelname)s:%(message)s",
-                        datefmt="%d-%M-%Y %H:%M:%S", level=logging.DEBUG)
     start_train(set_args())

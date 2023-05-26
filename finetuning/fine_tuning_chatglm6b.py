@@ -1,14 +1,12 @@
 # coding=UTF-8
 import argparse
-import random
-from glob import glob
 import os
-
 import sys
+from glob import glob
 
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
-from torch.optim.lr_scheduler import LambdaLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -70,8 +68,8 @@ def start_train(finetune_args):
         dataloader_pin_memory=False
     )
 
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    # lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
     trainer = LoraTrainer(
         model=model,
         tokenizer=tokenizer,
