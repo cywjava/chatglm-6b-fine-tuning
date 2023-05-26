@@ -2,7 +2,7 @@
 import argparse
 from glob import glob
 import os
-
+import logging
 import sys
 
 import torch
@@ -99,12 +99,6 @@ def start_train(finetune_args):
         auto_find_batch_size=True
     )
 
-    len_dataset = len(train_dataset)
-    batch_size = finetune_args.train_batch_size
-    epochs = finetune_args.epochs
-    # 每一个epoch中有多少个step可以根据len(DataLoader)计算：total_steps = len(DataLoader) * epochs
-    total_steps = (len_dataset // batch_size) * epochs if len_dataset % batch_size == 0 else (
-                                                                                                     len_dataset // batch_size + 1) * epochs
     optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
     lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
     trainer = LoraTrainer(
@@ -116,11 +110,11 @@ def start_train(finetune_args):
         eval_dataset=eval_dataset,
         data_collator=train_util.data_collator
     )
-    print("start train...")
+    logging.info("start train...")
     trainer.train()
     # train_sampler.set_epoch(epoch)
     trainer.save_model(finetune_args.check_points_path + os.sep + "final_model")
-    print("train finished...")
+    logging.info("train finished...")
 
 
 def set_args():
@@ -143,4 +137,7 @@ def set_args():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(filename="./logs/train.log", filemode="w",
+                        format="%(asctime)s %(name)s:%(levelname)s:%(message)s",
+                        datefmt="%d-%M-%Y %H:%M:%S", level=logging.DEBUG)
     start_train(set_args())

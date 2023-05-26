@@ -8,6 +8,7 @@ import sys
 
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
+from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -68,9 +69,11 @@ def start_train(finetune_args):
         dataloader_pin_memory=False
     )
 
+    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
     trainer = LoraTrainer(
         model=model,
-        tokenizer=tokenizer,
+        optimizers=(optimizer, lr_scheduler),
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
