@@ -25,7 +25,7 @@ export MASTER_ADDR=192.168.20.9
 
 ps -ef|grep ddp|awk '{print $2}'|grep -v 'grep'|xargs kill -9 
 
-nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 50 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0 >> ./logs/ddp2.log 2>&1 &
+nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 50 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0 >> ./logs/ddp.log 2>&1 &
 
 """
 
