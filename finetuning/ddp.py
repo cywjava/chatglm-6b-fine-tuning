@@ -24,7 +24,7 @@ export RANK=0
 export LOCAL_RANK=0
 export MASTER_ADDR=192.168.20.9
 
-python3 -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 --node_rank=0 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 20 --fp16 --fp16_opt_level O2 --do_eval
+python3 -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 5 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0
 """
 
 
@@ -86,6 +86,7 @@ def start_train(finetune_args):
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
+        lr_scheduler_type="cosine",
         learning_rate=finetune_args.learning_rate,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
@@ -97,8 +98,7 @@ def start_train(finetune_args):
         logging_steps=500,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
-        ddp_find_unused_parameters=False,
-        auto_find_batch_size=True
+        ddp_find_unused_parameters=False
     )
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)

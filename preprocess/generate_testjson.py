@@ -17,7 +17,7 @@ def generate_alpaca(question_file, answer_file, alpaca_file):
         answer = vf.readline()
     train_json = []
     for line in open(question_file, mode='r', encoding='UTF-8'):
-        for w_count in range(2000):
+        for w_count in range(100):
             train_json.append(
                 {'instruction': '' + line.strip() + '', 'input': '', 'output': '' + answer + ''})
     random.shuffle(train_json)
@@ -31,7 +31,7 @@ def generate_alpaca(question_file, answer_file, alpaca_file):
 
 
 if __name__ == "__main__":
-    question_file = "C:\\Users\\myoo\\Desktop\\json\\q2.txt"
-    answer_file = "C:\\Users\\myoo\\Desktop\\json\\a2.txt"
-    alpaca_file = "../data/a2.json"
+    question_file = "C:\\Users\\myoo\\Desktop\\json\\q4.txt"
+    answer_file = "C:\\Users\\myoo\\Desktop\\json\\a4.txt"
+    alpaca_file = "../data/a4.json"
     generate_alpaca(question_file, answer_file, alpaca_file)
