@@ -66,11 +66,13 @@ def start_train(finetune_args):
     eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=finetune_args.train_batch_size,
+    train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, collate_fn=train_util.data_collator,
+                                                    batch_size=finetune_args.train_batch_size,
                                                     sampler=train_sampler, drop_last=True)
 
     eval_sampler = torch.utils.data.distributed.DistributedSampler(eval_dataset)
-    eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset, batch_size=finetune_args.eval_batch_size,
+    eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset, collate_fn=train_util.data_collator,
+                                                   batch_size=finetune_args.eval_batch_size,
                                                    sampler=eval_sampler, drop_last=True)
 
     args = TrainingArguments(
@@ -80,7 +82,7 @@ def start_train(finetune_args):
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
         evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=4,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
@@ -106,8 +108,8 @@ def start_train(finetune_args):
         tokenizer=tokenizer,
         optimizers=(optimizer, lr_scheduler),
         args=args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=train_data_loader.dataset,
+        eval_dataset=eval_data_loader.dataset,
         data_collator=train_util.data_collator
     )
     logging.info("start train...")

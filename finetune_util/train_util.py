@@ -70,17 +70,17 @@ class TrainUtil:
             print(self.model)
             print(self.tokenizer)
             print("BOS:", self.tokenizer.bos_token_id)
-            print("EOP:", self.tokenizer.eop_token_id)
+            # print("EOP:", self.tokenizer.eop_token_id)
             print("EOS:", self.tokenizer.eos_token_id)
             print("UNK:", self.tokenizer.unk_token_id)
             print("PAD:", self.tokenizer.pad_token_id)
             print("MASK:", self.tokenizer.mask_token_id)
-            print("gMASK:", self.tokenizer.sp_tokenizer[self.tokenizer.gMASK_token])
+            # print("gMASK:", self.tokenizer.sp_tokenizer[self.tokenizer.gMASK_token])
             # 测试
             print("add_special_tokens=True,", self.tokenizer.encode("陈一万", add_special_tokens=True))
             print("add_special_tokens=False,", self.tokenizer.encode("陈一万", add_special_tokens=False))
-            print("87604 decode:", self.tokenizer.decode([87604]))
-            print("94969 decode:", self.tokenizer.decode([94969]))
+            print("87604 decode:", self.tokenizer.decode([67604]))
+            print("94969 decode:", self.tokenizer.decode([74969]))
 
             # 另外，当 add_special_tokens = True 时，编码结果会在末尾添加 150001和 150004，
             # 也就是 gmask 和 bos。请注意，我们的训练数据，要按照如下编码要求进行构造：

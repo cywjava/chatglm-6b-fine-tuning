@@ -52,11 +52,11 @@ def start_train(finetune_args):
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
         evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=4,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
-        lr_scheduler_type="linear",
+        lr_scheduler_type="cosine",
         learning_rate=finetune_args.learning_rate,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
@@ -70,12 +70,12 @@ def start_train(finetune_args):
         dataloader_pin_memory=False
     )
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    # lr_scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1 / (epoch + 1))
     trainer = LoraTrainer(
         model=model,
         tokenizer=tokenizer,
-        optimizers=(optimizer, lr_scheduler),
+        # optimizers=(optimizer, lr_scheduler),
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
