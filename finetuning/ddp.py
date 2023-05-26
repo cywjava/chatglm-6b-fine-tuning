@@ -17,7 +17,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader
 
 """
-export CUDA_VISIBLE_DEVICES=0,2
+export CUDA_VISIBLE_DEVICES=2,3
 export WORLD_SIZE=2
 export RANK=0
 export LOCAL_RANK=0
@@ -25,7 +25,7 @@ export MASTER_ADDR=192.168.20.9
 
 ps -ef|grep ddp|awk '{print $2}'|grep -v 'grep'|xargs kill -9 
 
-nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 50 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0 >> ./logs/ddp.log 2>&1 &
+nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 50 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0 --gradient_accumulation_steps 8 >> ./logs/ddp.log 2>&1 &
 
 """
 
@@ -66,8 +66,6 @@ def start_train(finetune_args):
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
     eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
-    print(f"-----train_dataset:{len(train_dataset)}")
-    print(f"-----eval_dataset:{len(eval_dataset)}")
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, collate_fn=train_util.data_collator,
@@ -86,12 +84,12 @@ def start_train(finetune_args):
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
         evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=finetune_args.gradient_accumulation_steps,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
         lr_scheduler_type="cosine",
-        learning_rate=finetune_args.learning_rate,
+        learning_rate=finetune_args.learning_rate * finetune_args.gradient_accumulation_steps,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
@@ -111,7 +109,7 @@ def start_train(finetune_args):
     trainer = LoraTrainer(
         model=model,
         tokenizer=tokenizer,
-        optimizers=(optimizer, lr_scheduler),
+        # optimizers=(optimizer, lr_scheduler),
         args=args,
         train_dataset=train_data_loader.dataset,
         eval_dataset=eval_data_loader.dataset,
@@ -137,6 +135,7 @@ def set_args():
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
     parser.add_argument('--fp16', action='store_true', help='fp16')
     parser.add_argument('--fp16_opt_level', default="o2", type=str, required=False, help='fp16_opt_level')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     parser.add_argument('--local_rank', type=int, default=-1)
 
