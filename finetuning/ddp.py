@@ -93,9 +93,9 @@ def start_train(finetune_args):
         push_to_hub=False,
         remove_unused_columns=False,
         save_strategy="steps",
-        save_steps=500,
-        eval_steps=500,
-        logging_steps=500,
+        save_steps=200,
+        eval_steps=200,
+        logging_steps=200,
         ignore_data_skip=True,
         dataloader_pin_memory=False,
         ddp_find_unused_parameters=False
@@ -126,7 +126,7 @@ def set_args():
     parser.add_argument('--check_points_path', default="../check_points_path", type=str, required=False,
                         help='微调check_points_path保存目录')
     parser.add_argument('--epochs', default=50, type=int, required=False, help='训练epochs')
-    parser.add_argument('--learning_rate', default=1e-3, type=float, required=False, help='learning_rate')
+    parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
