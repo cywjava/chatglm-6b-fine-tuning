@@ -50,12 +50,12 @@ def start_train(finetune_args):
         per_device_eval_batch_size=finetune_args.eval_batch_size,
         do_eval=finetune_args.do_eval,
         evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=finetune_args.gradient_accumulation_steps,
         num_train_epochs=finetune_args.epochs,
         weight_decay=0.1,
         warmup_steps=1_000,
         lr_scheduler_type="cosine",
-        learning_rate=finetune_args.learning_rate,
+        learning_rate=finetune_args.learning_rate * finetune_args.gradient_accumulation_steps,
         fp16=finetune_args.fp16,
         fp16_opt_level=finetune_args.fp16_opt_level,
         push_to_hub=False,
@@ -68,7 +68,8 @@ def start_train(finetune_args):
         dataloader_pin_memory=False
     )
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(),
+                                  lr=finetune_args.learning_rate * finetune_args.gradient_accumulation_steps)
     lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
     trainer = LoraTrainer(
         model=model,
@@ -97,6 +98,7 @@ def set_args():
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
     parser.add_argument('--fp16', action='store_true', help='fp16')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
     parser.add_argument('--fp16_opt_level', default="O2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     return parser.parse_args()
