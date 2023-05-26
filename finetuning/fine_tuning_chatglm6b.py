@@ -63,9 +63,9 @@ def start_train(finetune_args):
         push_to_hub=False,
         remove_unused_columns=False,
         save_strategy="steps",
-        save_steps=500,
-        eval_steps=500,
-        logging_steps=500,
+        save_steps=200,
+        eval_steps=200,
+        logging_steps=200,
         ignore_data_skip=True,
         dataloader_pin_memory=False
     )
