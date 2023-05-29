@@ -1,46 +1,29 @@
 # coding=UTF-8
 import argparse
-from glob import glob
 import os
 import sys
+import time
+from glob import glob
 
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
-from torch.optim.lr_scheduler import StepLR, MultiStepLR, LambdaLR, ExponentialLR, CosineAnnealingLR, ReduceLROnPlateau
+import torch.distributed as dist
+from torch.utils.data import DataLoader
+import torch.multiprocessing as mp
+import torch.nn as nn
+import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
 from finetune_util.train_util import TrainUtil
-import torch.distributed as dist
-from torch.utils.data import DataLoader
 
-"""
-export CUDA_VISIBLE_DEVICES=2,3
-export WORLD_SIZE=2
-export RANK=0
-export LOCAL_RANK=0
-export MASTER_ADDR=192.168.20.9
-rm -rf logs/ddp.log
-ps -ef|grep ddp|awk '{print $2}'|grep -v 'grep'|xargs kill -9 
-
-nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 10 --local_rank 0 --gradient_accumulation_steps 4 >> ./logs/ddp.log 2>&1 &
-
-"""
-
-
-def start_train(finetune_args):
-    rank = int(os.environ["RANK"])
-    world_size = int(os.environ["WORLD_SIZE"])
-    local_rank = int(os.environ["LOCAL_RANK"]) if finetune_args.local_rank is None else int(finetune_args.local_rank)
-    dist.init_process_group(backend='nccl', init_method="tcp://localhost:29500", rank=rank, world_size=world_size)
-    torch.cuda.set_device(local_rank)
-
-    if torch.cuda.is_available():
-        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
-    else:
-        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).float()
+def start_train(rank, world_size, finetune_args):
+    torch.cuda.set_device(rank)
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
     tokenizer = AutoTokenizer.from_pretrained(finetune_args.model_path, trust_remote_code=True)
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
@@ -55,12 +38,8 @@ def start_train(finetune_args):
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
     model.cuda()
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=[local_rank],
-                                                      find_unused_parameters=True)
-
+    model = DDP(model, device_ids=[rank], output_device=[rank])
     train_util = TrainUtil(finetune_args, model, tokenizer)
-    train_util.print_debug()
-
     # 生成训练集和测试集
     train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
@@ -79,49 +58,9 @@ def start_train(finetune_args):
                                                    shuffle=(eval_sampler is None),
                                                    sampler=eval_sampler, drop_last=True)
 
-    args = TrainingArguments(
-        output_dir=finetune_args.check_points_path,
-        overwrite_output_dir=True,
-        per_device_train_batch_size=finetune_args.train_batch_size,
-        per_device_eval_batch_size=finetune_args.eval_batch_size,
-        do_eval=finetune_args.do_eval,
-        evaluation_strategy="steps" if finetune_args.do_eval else "no",
-        gradient_accumulation_steps=finetune_args.gradient_accumulation_steps,
-        num_train_epochs=finetune_args.epochs,
-        weight_decay=0.1,
-        warmup_steps=1_000,
-        lr_scheduler_type="cosine",
-        learning_rate=finetune_args.learning_rate * finetune_args.gradient_accumulation_steps,
-        fp16=finetune_args.fp16,
-        fp16_opt_level=finetune_args.fp16_opt_level,
-        push_to_hub=False,
-        remove_unused_columns=False,
-        save_strategy="steps",
-        save_steps=200,
-        eval_steps=200,
-        logging_steps=200,
-        ignore_data_skip=True,
-        dataloader_pin_memory=False,
-        ddp_find_unused_parameters=False
-    )
-
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    # lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
-
-    trainer = LoraTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        # optimizers=(optimizer, lr_scheduler),
-        args=args,
-        train_dataset=train_data_loader.dataset,
-        eval_dataset=eval_data_loader.dataset,
-        data_collator=train_util.data_collator
-    )
-    print("start train...")
-    trainer.train()
-    # train_sampler.set_epoch(epoch)
-    trainer.save_model(finetune_args.check_points_path + os.sep + "final_model")
-    print("train finished...")
+    for epoch in range(finetune_args.epochs):
+        time.sleep(10)
+        print("epoch:", epoch)
 
 
 def set_args():
@@ -134,10 +73,10 @@ def set_args():
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
     parser.add_argument('--fp16', action='store_true', help='fp16')
     parser.add_argument('--fp16_opt_level', default="o2", type=str, required=False, help='fp16_opt_level')
-    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     parser.add_argument('--local_rank', type=int, default=-1)
 
@@ -145,4 +84,11 @@ def set_args():
 
 
 if __name__ == '__main__':
-    start_train(set_args())
+    _finetune_args = set_args()
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "29500"
+    _world_size = int(os.environ["WORLD_SIZE"]) if os.environ["WORLD_SIZE"] is not None else 2
+    mp.spawn(start_train,
+             args=(_world_size, _finetune_args,),
+             nprocs=_world_size,
+             join=True)
