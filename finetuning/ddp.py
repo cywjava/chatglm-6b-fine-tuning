@@ -20,10 +20,16 @@ from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
 from finetune_util.train_util import TrainUtil
 
+
 def start_train(rank, world_size, finetune_args):
     torch.cuda.set_device(rank)
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
+    print("1.dist初始化...")
+    dist.init_process_group("gloo", rank=rank, world_size=world_size)
+    print("2.加载模型...")
+    if finetune_args.debug:
+        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).quantize(4).cuda()
+    else:
+        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
     tokenizer = AutoTokenizer.from_pretrained(finetune_args.model_path, trust_remote_code=True)
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
@@ -33,11 +39,12 @@ def start_train(rank, world_size, finetune_args):
         lora_dropout=0.1,
         target_modules=['query_key_value']
     )
+    print("3.加载peft模型...")
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
-    model.cuda()
+    print("4.加载ddp模型...")
     model = DDP(model, device_ids=[rank], output_device=[rank])
     train_util = TrainUtil(finetune_args, model, tokenizer)
     # 生成训练集和测试集
@@ -57,7 +64,7 @@ def start_train(rank, world_size, finetune_args):
                                                    batch_size=finetune_args.eval_batch_size,
                                                    shuffle=(eval_sampler is None),
                                                    sampler=eval_sampler, drop_last=True)
-
+    print("5.start train...")
     for epoch in range(finetune_args.epochs):
         time.sleep(10)
         print("epoch:", epoch)
@@ -87,7 +94,9 @@ if __name__ == '__main__':
     _finetune_args = set_args()
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
-    _world_size = int(os.environ["WORLD_SIZE"]) if os.environ["WORLD_SIZE"] is not None else 2
+    if _finetune_args.debug:
+        os.environ["WORLD_SIZE"] = 1
+    _world_size = os.environ["WORLD_SIZE"] if os.environ["WORLD_SIZE"] is not None else 2
     mp.spawn(start_train,
              args=(_world_size, _finetune_args,),
              nprocs=_world_size,
