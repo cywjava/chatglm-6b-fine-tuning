@@ -68,13 +68,9 @@ def start_train(finetune_args):
         dataloader_pin_memory=False
     )
 
-    optimizer = torch.optim.AdamW(model.parameters(),
-                                  lr=finetune_args.learning_rate * finetune_args.gradient_accumulation_steps)
-    lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
     trainer = LoraTrainer(
         model=model,
         tokenizer=tokenizer,
-        # optimizers=(optimizer, lr_scheduler),
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,

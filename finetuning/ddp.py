@@ -22,10 +22,10 @@ export WORLD_SIZE=2
 export RANK=0
 export LOCAL_RANK=0
 export MASTER_ADDR=192.168.20.9
-
+rm -rf logs/ddp.log
 ps -ef|grep ddp|awk '{print $2}'|grep -v 'grep'|xargs kill -9 
 
-nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 50 --fp16 --fp16_opt_level O2 --do_eval --local_rank 0 --gradient_accumulation_steps 8 >> ./logs/ddp.log 2>&1 &
+nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetuning/ddp.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 3 --epochs 10 --local_rank 0 --gradient_accumulation_steps 4 >> ./logs/ddp.log 2>&1 &
 
 """
 
@@ -33,8 +33,7 @@ nohup python3 -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 ./finetu
 def start_train(finetune_args):
     rank = int(os.environ["RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
-    local_rank = int(os.environ["LOCAL_RANK"])
-
+    local_rank = int(os.environ["LOCAL_RANK"]) if finetune_args.local_rank is None else int(finetune_args.local_rank)
     dist.init_process_group(backend='nccl', init_method="tcp://localhost:29500", rank=rank, world_size=world_size)
     torch.cuda.set_device(local_rank)
 
@@ -56,7 +55,8 @@ def start_train(finetune_args):
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
     model.cuda()
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=[local_rank])
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=[local_rank],
+                                                      find_unused_parameters=True)
 
     train_util = TrainUtil(finetune_args, model, tokenizer)
     train_util.print_debug()
@@ -68,13 +68,15 @@ def start_train(finetune_args):
     eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset, collate_fn=train_util.data_collator,
+    train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                     batch_size=finetune_args.train_batch_size,
+                                                    shuffle=(train_sampler is None),
                                                     sampler=train_sampler, drop_last=True)
 
     eval_sampler = torch.utils.data.distributed.DistributedSampler(eval_dataset)
-    eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset, collate_fn=train_util.data_collator,
+    eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset,
                                                    batch_size=finetune_args.eval_batch_size,
+                                                   shuffle=(eval_sampler is None),
                                                    sampler=eval_sampler, drop_last=True)
 
     args = TrainingArguments(
@@ -103,8 +105,8 @@ def start_train(finetune_args):
         ddp_find_unused_parameters=False
     )
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    # lr_scheduler = CosineAnnealingLR(optimizer, T_max=finetune_args.epochs)
 
     trainer = LoraTrainer(
         model=model,
