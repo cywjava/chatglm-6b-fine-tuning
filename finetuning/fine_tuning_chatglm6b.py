@@ -6,7 +6,6 @@ from glob import glob
 
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -92,9 +91,9 @@ def set_args():
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
     parser.add_argument('--fp16', action='store_true', help='fp16')
-    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
     parser.add_argument('--fp16_opt_level', default="O2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     return parser.parse_args()
