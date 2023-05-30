@@ -8,6 +8,7 @@ from glob import glob
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModel, TrainingArguments
+from torch.optim.lr_scheduler import StepLR, MultiStepLR, LambdaLR, ExponentialLR, CosineAnnealingLR, ReduceLROnPlateau
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 import torch.multiprocessing as mp
@@ -23,13 +24,8 @@ from finetune_util.train_util import TrainUtil
 
 def start_train(rank, world_size, finetune_args):
     torch.cuda.set_device(rank)
-    print("1.dist初始化...")
     dist.init_process_group("gloo", rank=rank, world_size=world_size)
-    print("2.加载模型...")
-    if finetune_args.debug:
-        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).quantize(4).cuda()
-    else:
-        model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
+    model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
     tokenizer = AutoTokenizer.from_pretrained(finetune_args.model_path, trust_remote_code=True)
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
@@ -39,35 +35,51 @@ def start_train(rank, world_size, finetune_args):
         lora_dropout=0.1,
         target_modules=['query_key_value']
     )
-    print("3.加载peft模型...")
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
-    print("4.加载ddp模型...")
-    model = DDP(model, device_ids=[rank], output_device=[rank])
+    model.to(rank)
+    # model = DDP(model, device_ids=[rank], output_device=[rank] )
     train_util = TrainUtil(finetune_args, model, tokenizer)
     # 生成训练集和测试集
     train_file_list = glob(pathname=finetune_args.dataset_path)
     # 2023-04-18 chenyiwan 重构loadset 操作
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
-    eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
+    # eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                     batch_size=finetune_args.train_batch_size,
                                                     shuffle=(train_sampler is None),
-                                                    sampler=train_sampler, drop_last=True)
+                                                    sampler=train_sampler, drop_last=True,
+                                                    collate_fn=train_util.data_collator)
 
-    eval_sampler = torch.utils.data.distributed.DistributedSampler(eval_dataset)
-    eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset,
-                                                   batch_size=finetune_args.eval_batch_size,
-                                                   shuffle=(eval_sampler is None),
-                                                   sampler=eval_sampler, drop_last=True)
-    print("5.start train...")
+    optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
+    print("start train...")
     for epoch in range(finetune_args.epochs):
-        time.sleep(10)
-        print("epoch:", epoch)
+        train_sampler.set_epoch(epoch)
+        for step, batch in enumerate(train_data_loader):
+            batch = {k: v.to(rank) for k, v in batch.items()}
+            outputs = model(**batch)
+            loss = outputs.loss
+            loss.backward()
+            optimizer.step()
+            if step % 100 == 0:
+                print(f"epoch:{(epoch + 1)},step:{step},loss:{outputs.loss}")
+            optimizer.zero_grad()
+            optimizer.step()
+    if rank == 0:
+        torch.save(model, finetune_args.check_points_path + os.sep + "chatglm-6b-lora.pt")
+
+
+def compute_loss(self, model, inputs, return_outputs=False):
+    return model(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        position_ids=inputs["position_ids"],
+        labels=inputs["labels"],
+    ).loss
 
 
 def set_args():
@@ -94,9 +106,7 @@ if __name__ == '__main__':
     _finetune_args = set_args()
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
-    if _finetune_args.debug:
-        os.environ["WORLD_SIZE"] = 1
-    _world_size = os.environ["WORLD_SIZE"] if os.environ["WORLD_SIZE"] is not None else 2
+    _world_size = int(os.environ.get("WORLD_SIZE", 1))
     mp.spawn(start_train,
              args=(_world_size, _finetune_args,),
              nprocs=_world_size,
