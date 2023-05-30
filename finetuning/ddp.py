@@ -40,7 +40,7 @@ def start_train(rank, world_size, finetune_args):
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
     model.to(rank)
-    # model = DDP(model, device_ids=[rank], output_device=[rank] )
+    model = DDP(model, device_ids=[rank], output_device=[rank])
     train_util = TrainUtil(finetune_args, model, tokenizer)
     # 生成训练集和测试集
     train_file_list = glob(pathname=finetune_args.dataset_path)
@@ -61,25 +61,16 @@ def start_train(rank, world_size, finetune_args):
         train_sampler.set_epoch(epoch)
         for step, batch in enumerate(train_data_loader):
             batch = {k: v.to(rank) for k, v in batch.items()}
-            outputs = model(**batch)
-            loss = outputs.loss
-            loss.backward()
-            optimizer.step()
-            if step % 100 == 0:
-                print(f"epoch:{(epoch + 1)},step:{step},loss:{outputs.loss}")
-            optimizer.zero_grad()
-            optimizer.step()
+            # outputs = model(**batch)
+            # loss = outputs.loss
+            # loss.backward()
+            # optimizer.step()
+            # if step % 100 == 0:
+            #     print(f"epoch:{(epoch + 1)},step:{step},loss:{outputs.loss}")
+            # optimizer.zero_grad()
+            # optimizer.step()
     if rank == 0:
         torch.save(model, finetune_args.check_points_path + os.sep + "chatglm-6b-lora.pt")
-
-
-def compute_loss(self, model, inputs, return_outputs=False):
-    return model(
-        input_ids=inputs["input_ids"],
-        attention_mask=inputs["attention_mask"],
-        position_ids=inputs["position_ids"],
-        labels=inputs["labels"],
-    ).loss
 
 
 def set_args():
