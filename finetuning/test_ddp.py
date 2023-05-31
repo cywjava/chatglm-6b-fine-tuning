@@ -11,7 +11,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 def example(rank, world_size):
     # create default process group
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
     # create local model
     model = nn.Linear(10, 10).to(rank)
     # construct DDP model
@@ -23,11 +23,10 @@ def example(rank, world_size):
     for idx in range(100):
         # forward pass
         print("start epoch:", idx)
-        time.sleep(5)
-        outputs = ddp_model(torch.randn(20, 10).to(rank))
-        labels = torch.randn(20, 10).to(rank)
+        batch = torch.randn(20, 10).to(rank)
+        outputs = ddp_model(batch)
         # backward pass
-        loss = loss_fn(outputs, labels)
+        loss = loss_fn(outputs, batch)
         loss.backward()
         # update parameters
         optimizer.step()

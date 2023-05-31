@@ -68,6 +68,9 @@ def start_train(rank, world_size, finetune_args):
         for step, batch in enumerate(train_data_loader):
             outputs = model(**batch)
             print(f"epoch:{(epoch + 1)},step:{(step + 1)}")
+            loss = nn.MSELoss(outputs, batch)
+            loss.backward()
+            optimizer.step()
 
         if rank == 0:
             path = finetune_args.check_points_path + os.sep + (
