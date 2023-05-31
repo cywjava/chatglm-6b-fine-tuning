@@ -14,7 +14,7 @@ https://github.com/THUDM/ChatGLM-6B
 ---
 + 2023-05-25
   - 更新最新的模型文件，修改alpaca_dataset,支持新模型训练。
-  - 添加DDP分布式训练代码，目前测试中。
+  - 添加DDP分布式训练代码，使用accelerate,目前测试中。
     - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
     - 单卡训练耗时12小时
     - ![img.png](images/img.png)
@@ -37,7 +37,9 @@ https://github.com/THUDM/ChatGLM-6B
   - 共享一个模型，能够多卡运行,下载后替换model目录下的所有文件 -> [百度网盘](https://pan.baidu.com/s/15O5WSDVqXH0QEjm5DeNeng?pwd=8888)
 - 2、安装依赖
   ~~~
-  pip3 install protobuf==3.20.0 transformers==4.27.1 icetk cpm_kernels
+  pip3 install protobuf==3.20.0 transformers==4.28.1 icetk cpm_kernels
+  pip3 install accelerate==0.19.0
+  pip3 install urllib3==1.26.5
   ~~~
 - 3、修改 chat_interact.py 中的 PRE_TRAINED_MODEL_PATH='上面克隆的chatglm-6b文件夹路径'
 - 4、运行代码 python3 chat_interact.py

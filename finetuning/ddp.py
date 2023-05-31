@@ -40,7 +40,8 @@ def start_train(rank, world_size, finetune_args):
         target_modules=['query_key_value']
     )
     model = get_peft_model(model, peft_config)
-    model.print_trainable_parameters()
+    if rank == 0:
+        model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
     model.to(rank)
@@ -60,18 +61,20 @@ def start_train(rank, world_size, finetune_args):
                                                     collate_fn=train_util.data_collator)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    print("start train...")
+    if rank == 0:
+        print("start train...")
     for epoch in range(finetune_args.epochs):
         train_sampler.set_epoch(epoch)
         if rank == 0:
             print(f"epoch:{(epoch + 1)},start_time:{datetime.now()}")
         for step, batch in enumerate(train_data_loader):
             outputs = model(**batch)
-            print(f"epoch:{(epoch + 1)},step:{(step + 1)}")
-            loss = nn.MSELoss(outputs, batch)
+            loss = outputs.loss
+            if rank == 0:
+                print(f"epoch:{(epoch + 1)},step:{(step + 1)},loss:{loss}")
             loss.backward()
             optimizer.step()
-
+            optimizer.zero_grad()
         if rank == 0:
             path = finetune_args.check_points_path + os.sep + (
                     "epoch_" + str(epoch + 1)) + os.sep + "chatglm-6b-lora.pt"
