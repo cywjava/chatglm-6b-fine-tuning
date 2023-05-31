@@ -3,6 +3,7 @@ import argparse
 import os
 import sys
 import time
+from datetime import datetime
 from glob import glob
 
 import torch
@@ -20,10 +21,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
 from finetune_util.train_util import TrainUtil
+from apex import amp
 
 
 def start_train(rank, world_size, finetune_args):
     torch.cuda.set_device(rank)
+    if finetune_args.fp16:
+        torch.set_default_dtype(torch.float16)
     dist.init_process_group("gloo", rank=rank, world_size=world_size)
     model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
     tokenizer = AutoTokenizer.from_pretrained(finetune_args.model_path, trust_remote_code=True)
@@ -48,7 +52,7 @@ def start_train(rank, world_size, finetune_args):
     train_dataset = AlpacaDataset(AlpacaDataset.load_json(train_file_list), tokenizer)
     # eval_dataset = AlpacaDataset(train_dataset.eval_data(0.2), tokenizer)
 
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, seed=42)
     train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                     batch_size=finetune_args.train_batch_size,
                                                     shuffle=(train_sampler is None),
@@ -59,18 +63,22 @@ def start_train(rank, world_size, finetune_args):
     print("start train...")
     for epoch in range(finetune_args.epochs):
         train_sampler.set_epoch(epoch)
+        if rank == 0:
+            print(f"epoch:{(epoch + 1)},start_time:{datetime.now()}")
         for step, batch in enumerate(train_data_loader):
-            batch = {k: v.to(rank) for k, v in batch.items()}
-            # outputs = model(**batch)
-            # loss = outputs.loss
-            # loss.backward()
-            # optimizer.step()
-            # if step % 100 == 0:
-            #     print(f"epoch:{(epoch + 1)},step:{step},loss:{outputs.loss}")
-            # optimizer.zero_grad()
-            # optimizer.step()
+            outputs = model(**batch)
+            print(f"epoch:{(epoch + 1)},step:{(step + 1)}")
+
+        if rank == 0:
+            path = finetune_args.check_points_path + os.sep + (
+                    "epoch_" + str(epoch + 1)) + os.sep + "chatglm-6b-lora.pt"
+            print(f"save epoch:{(epoch + 1)} check point at:{path}")
+            torch.save(model, path)
     if rank == 0:
-        torch.save(model, finetune_args.check_points_path + os.sep + "chatglm-6b-lora.pt")
+        final_path = finetune_args.check_points_path + os.sep + "final" + os.sep + "chatglm-6b-lora.pt"
+        print(f"save final check point at:{final_path}")
+        torch.save(model, final_path)
+        print(f"train finished")
 
 
 def set_args():
@@ -79,6 +87,7 @@ def set_args():
     parser.add_argument('--model_path', default="../model/", type=str, required=False, help='原始发布的预训练模型目录')
     parser.add_argument('--check_points_path', default="../check_points_path", type=str, required=False,
                         help='微调check_points_path保存目录')
+    parser.add_argument('--devices', default="0", type=str, required=False)
     parser.add_argument('--epochs', default=50, type=int, required=False, help='训练epochs')
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
@@ -88,7 +97,6 @@ def set_args():
     parser.add_argument('--fp16', action='store_true', help='fp16')
     parser.add_argument('--fp16_opt_level', default="o2", type=str, required=False, help='fp16_opt_level')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
-    parser.add_argument('--local_rank', type=int, default=-1)
 
     return parser.parse_args()
 
@@ -97,7 +105,8 @@ if __name__ == '__main__':
     _finetune_args = set_args()
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
-    _world_size = int(os.environ.get("WORLD_SIZE", 1))
+    os.environ["CUDA_VISIBLE_DEVICES"] = _finetune_args.devices
+    _world_size = len(_finetune_args.devices.split(","))
     mp.spawn(start_train,
              args=(_world_size, _finetune_args,),
              nprocs=_world_size,
