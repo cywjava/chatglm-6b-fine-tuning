@@ -6,66 +6,71 @@
 + 2 如何使用LORA微调chatGLM-6B模型,单卡，多卡均可。
 
 #### 在此感谢
+
 ~~~
 https://github.com/THUDM/ChatGLM-6B
 ~~~
 
 #### 更新说明
 ---
-+ 2023-06-01 
-  - 使用accelerate加速训练, 需要安装下面两个库。
-    ~~~
-    pip3 install accelerate==0.19.0
-    pip3 install urllib3==1.26.5
-    ~~~
-  - accelerate config 进行环境配置，生成的文件如下
-  - /home/train/.cache/huggingface/accelerate/default_config.yaml 
+
++ 2023-06-01
+    - 使用accelerate加速训练, 需要安装下面两个库。
       ~~~
-        compute_environment: LOCAL_MACHINE
-        distributed_type: MULTI_GPU                                                                                                                                                                                                        
-        downcast_bf16: 'no'
-        gpu_ids: ALL
-        machine_rank: 0
-        main_training_function: main
-        mixed_precision: fp16
-        num_machines: 1
-        num_processes: 4
-        rdzv_backend: static
-        same_network: true
-        tpu_env: []
-        tpu_use_cluster: false
-        tpu_use_sudo: false
-        use_cpu: false
+      pip3 install accelerate==0.19.0
+      pip3 install urllib3==1.26.5
       ~~~
-  - num_machines: 1 表示有几个节点，num_processes: 4 表示启用几个进程，每个进程对应一张卡,如果你只想使用两张卡，则这里必须改为2
-  - 使用2张，默认用序号0和1的卡，你可以通过export CUDA_VISIBLE_DEVICES=2,3 来改变使用哪两张卡。
-    ![img.png](images/accelerate_img.png)
-  - 启动命令：accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml your_train.py your_train_parameter .... 
-  - 测试加速对比如下：
-  - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
-  - 单卡训练耗时12小时
-  - ![img.png](images/img.png)
-  - 使用DDP两卡并行，耗时6小时,效率提升50%.
-  - ![img.png](images/ddp_img.png)
-  - tensorboard --logdir /home/train/check_points/runs/May25_16-45-12_localhost.localdomain
-  - ![img.png](images/img_1.png)
+    - accelerate config 进行环境配置，生成的文件如下
+    - /home/train/.cache/huggingface/accelerate/default_config.yaml
+        ~~~
+          compute_environment: LOCAL_MACHINE
+          distributed_type: MULTI_GPU                                                                                                                                                                                                        
+          downcast_bf16: 'no'
+          gpu_ids: ALL
+          machine_rank: 0
+          main_training_function: main
+          mixed_precision: fp16
+          num_machines: 1
+          num_processes: 4
+          rdzv_backend: static
+          same_network: true
+          tpu_env: []
+          tpu_use_cluster: false
+          tpu_use_sudo: false
+          use_cpu: false
+        ~~~
+    - num_machines: 1 表示有几个节点，num_processes: 4 表示启用几个进程，每个进程对应一张卡,如果你只想使用两张卡，则这里必须改为2
+    - 使用2张，默认用序号0和1的卡，你可以通过export CUDA_VISIBLE_DEVICES=2,3 来改变使用哪两张卡。
+      ![img.png](images/accelerate_img.png)
+    - 启动命令：accelerate launch --gpu_ids='all' --config_file
+      /home/train/.cache/huggingface/accelerate/default_config.yaml your_train.py your_train_parameter ....
+    - 测试加速对比如下：
+    - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
+    - 单卡训练耗时12小时
+    - ![img.png](images/img.png)
+    - 使用DDP两卡并行，耗时6小时,效率提升50%.
+    - ![img.png](images/ddp_img.png)
+    - tensorboard --logdir /home/train/check_points/runs/May25_16-45-12_localhost.localdomain
+    - ![img.png](images/img_1.png)
 
 + 2023-05-25
-  - 更新最新的模型文件，修改alpaca_dataset,支持新模型训练。
-  - 添加DDP分布式训练代码，使用accelerate,目前测试中。
+    - 更新最新的模型文件，修改alpaca_dataset,支持新模型训练。
+    - 添加DDP分布式训练代码，使用accelerate,目前测试中。
 
-+ 2023-04-21 
++ 2023-04-21
     - 重构训练时的参数、生成数据集、张量等一系列操作。
-    - 重构代码目录，去掉parallel,自动多卡运行
-  
+    - 重构代码目录，去掉parallel,自动多卡运行（老版代码）
+
 + 2023-04-08 修改生成测试json逻辑，完成改名操作,如下图所示
   ![rename.png](images%2Frename.png)
   ![rename2.png](images%2Frename2.png)
 
-#### 如何部署运行chatglm-6b?
+## 如何部署运行chatglm-6b?
 
-- 1、HF 下载模型配置及权重文件： https://huggingface.co/THUDM/chatglm-6b/tree/main  最新版的在我这里不支持多卡并行训练，仅能单卡训练。
-  - 共享一个模型，能够多卡运行,下载后替换model目录下的所有文件 -> [百度网盘](https://pan.baidu.com/s/15O5WSDVqXH0QEjm5DeNeng?pwd=8888)
+- 1、HF 下载模型配置及权重文件： https://huggingface.co/THUDM/chatglm-6b/tree/main
+    - ~~
+      老版本模型：共享一个模型，能够多卡运行,下载后替换model目录下的所有文件 -> [百度网盘](https://pan.baidu.com/s/15O5WSDVqXH0QEjm5DeNeng?pwd=8888)~~
+    - ~~使用老版代码，已经废弃~~   **新版代码说明，在2023-06-01更新**
 - 2、安装依赖
   ~~~
   pip3 install protobuf==3.20.0 transformers==4.28.1 icetk cpm_kernels
@@ -108,7 +113,8 @@ https://github.com/THUDM/ChatGLM-6B
 + start_chat_server.sh 启动chat_server.py
 + data 训练数据集
 + model 官方chatglm-6b模型文件夹,这里面不包含.bin文件，需要将bin复制进来，当然这个目录你也可以放到其它任意位置。
-+ finetuning 训练代码目录（支持多卡，在运行训练代码前，先export CUDA_DEVICE_ORDER="PCI_BUS_ID" export CUDA_VISIBLE_DEVICE="0,1,2,3",这里用4张卡 ）
++ finetuning 训练代码目录（支持多卡，在运行训练代码前，先export CUDA_DEVICE_ORDER="PCI_BUS_ID" export CUDA_VISIBLE_DEVICE="
+  0,1,2,3",这里用4张卡 ）
 + ddp 为分布式训练
 + finetune_util 工具类
   ~~~
