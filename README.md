@@ -14,8 +14,8 @@ https://github.com/THUDM/ChatGLM-6B
 #### 更新说明
 ---
 
-+ 2023-06-01
-    - 使用accelerate加速训练, 需要安装下面两个库。
++ 2023-06-01 分布式加速训练，单机多卡，多机多卡
+    - 使用accelerate,实现DDP分布式训练加速, 需要安装下面两个库。
       ~~~
       pip3 install accelerate==0.19.0
       pip3 install urllib3==1.26.5
