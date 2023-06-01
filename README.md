@@ -126,4 +126,4 @@ https://github.com/THUDM/ChatGLM-6B
 + NVIDIA驱动版本： 515.65.01
 + CUDA 版本：11.7
 + cuDNN 版本：v8.8.0
-+ GPU：P40 24gb * 8 
++ GPU：P40 24gb * 8 or 3090 * 5 
