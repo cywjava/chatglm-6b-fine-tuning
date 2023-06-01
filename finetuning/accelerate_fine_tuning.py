@@ -1,18 +1,16 @@
 # coding=UTF-8
-import shutil
-import time
-
-from accelerate import Accelerator
 import argparse
 import os
+import shutil
 import sys
 from glob import glob
 
 import torch
-from tqdm import tqdm
+from accelerate import Accelerator
 from peft import get_peft_model, LoraConfig, TaskType
 from torch.optim.lr_scheduler import OneCycleLR
-from transformers import AutoTokenizer, AutoModel, TrainingArguments
+from tqdm import tqdm
+from transformers import AutoTokenizer, AutoModel
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
@@ -105,9 +103,9 @@ def start_train(finetune_args):
 def save_pt(_accelerator, _model, pt_path, pt_name):
     _accelerator.wait_for_everyone()
     unwrapped_model = _accelerator.unwrap_model(_model)
+    if not os.path.exists(pt_path):
+        os.makedirs(pt_path)
     shutil.rmtree(pt_path, ignore_errors=True)
-    os.makedirs(pt_path)
-    time.sleep(1)
     _accelerator.save({
         k: v.to("cpu") for k, v in unwrapped_model.named_parameters() if v.requires_grad
     }, pt_path + os.sep + pt_name)
