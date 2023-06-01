@@ -68,8 +68,7 @@ https://github.com/THUDM/ChatGLM-6B
 ## 如何部署运行chatglm-6b?
 
 - 1、HF 下载模型配置及权重文件： https://huggingface.co/THUDM/chatglm-6b/tree/main
-    - ~~
-      老版本模型：共享一个模型，能够多卡运行,下载后替换model目录下的所有文件 -> [百度网盘](https://pan.baidu.com/s/15O5WSDVqXH0QEjm5DeNeng?pwd=8888)~~
+    - ~~老版本模型：共享一个模型，能够多卡运行,下载后替换model目录下的所有文件 -> [百度网盘](https://pan.baidu.com/s/15O5WSDVqXH0QEjm5DeNeng?pwd=8888)~~
     - ~~使用老版代码，已经废弃~~   **新版代码说明，在2023-06-01更新**
 - 2、安装依赖
   ~~~
