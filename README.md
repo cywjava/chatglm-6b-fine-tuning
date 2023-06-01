@@ -40,11 +40,9 @@ https://github.com/THUDM/ChatGLM-6B
           use_cpu: false
         ~~~
     - num_machines: 1 表示有几个节点，num_processes: 4 表示启用几个进程，每个进程对应一张卡,如果你只想使用两张卡，则这里必须改为2
-    - 使用2张，默认用序号0和1的卡，你可以通过export CUDA_VISIBLE_DEVICES=2,3改变使用哪两张卡
-    - 也可以使用accelerate launch参数 --gpu_ids='2,3'来指定。
+    - 使用2张，默认用序号0和1的卡，你可以通过export CUDA_VISIBLE_DEVICES=2,3改变使用哪两张卡,也可以使用accelerate launch参数 --gpu_ids='2,3'来指定。
       ![img.png](images/accelerate_img.png)
-    - 启动命令：accelerate launch --gpu_ids='all' --config_file
-      /home/train/.cache/huggingface/accelerate/default_config.yaml your_train.py your_train_parameter ....
+    - 启动命令：accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml your_train.py your_train_parameter ....
     - 测试加速对比如下：
     - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
     - 单卡训练耗时12小时

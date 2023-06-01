@@ -78,9 +78,9 @@ def start_train(finetune_args):
     model.train()
     pt_name = "chatglm-6b-lora.pth"
     for epoch in tqdm(range(finetune_args.epochs), "Overall progress", colour="GREEN",
-                      disable=not accelerator.is_local_main_process):
+                      disable=not accelerator.is_main_process):
         with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress",
-                  colour="GREEN", disable=not accelerator.is_local_main_process) as epoch_process_bar:
+                  colour="GREEN", disable=not accelerator.is_main_process) as epoch_process_bar:
             for step, batch in enumerate(train_data_loader):
                 with accelerator.accumulate(model):
                     optimizer.zero_grad()
@@ -95,18 +95,17 @@ def start_train(finetune_args):
                     #     accelerator.print(f"\nepoch:{(epoch + 1)},step:{step},loss:{loss}")
                     # if finetune_args.do_eval and step != 0:
                     #     accelerator.print("\neval loss:")
-        save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "epoch_" + str(epoch + 1), pt_name)
-    save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "final", pt_name)
+        if accelerator.is_main_process:
+            save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "epoch_" + str(epoch + 1), pt_name)
+    if accelerator.is_main_process:
+        save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "final", pt_name)
     accelerator.print(f"\ntrain finished")
 
 
 def save_pt(_accelerator, _model, pt_path, pt_name):
     _accelerator.wait_for_everyone()
     unwrapped_model = _accelerator.unwrap_model(_model)
-    if not os.path.exists(pt_path+os.sep+pt_name):
-        os.makedirs(pt_path+os.sep+pt_name)
-    shutil.rmtree(pt_path, ignore_errors=True)
-    _accelerator.save({
+    torch.save({
         k: v.to("cpu") for k, v in unwrapped_model.named_parameters() if v.requires_grad
     }, pt_path + os.sep + pt_name)
 
