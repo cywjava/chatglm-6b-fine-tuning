@@ -17,7 +17,7 @@ from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.train_util import TrainUtil
 
 """
-accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml ./finetuning/accelerate_fine_tuning.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 2 --epochs 2 --gradient_accumulation_steps 4 --fp16 
+accelerate launch --gpu_ids='0,1' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml ./finetuning/accelerate_fine_tuning.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 2 --epochs 2 --gradient_accumulation_steps 4 --fp16 
 """
 
 
@@ -103,8 +103,8 @@ def start_train(finetune_args):
 def save_pt(_accelerator, _model, pt_path, pt_name):
     _accelerator.wait_for_everyone()
     unwrapped_model = _accelerator.unwrap_model(_model)
-    if not os.path.exists(pt_path):
-        os.makedirs(pt_path)
+    if not os.path.exists(pt_path+os.sep+pt_name):
+        os.makedirs(pt_path+os.sep+pt_name)
     shutil.rmtree(pt_path, ignore_errors=True)
     _accelerator.save({
         k: v.to("cpu") for k, v in unwrapped_model.named_parameters() if v.requires_grad
