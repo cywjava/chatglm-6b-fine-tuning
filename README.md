@@ -12,36 +12,47 @@ https://github.com/THUDM/ChatGLM-6B
 
 #### 更新说明
 ---
++ 2023-06-01 
+  - 使用accelerate加速训练, 需要安装下面两个库。
+    ~~~
+    pip3 install accelerate==0.19.0
+    pip3 install urllib3==1.26.5
+    ~~~
+  - accelerate config 进行环境配置，生成的文件如下
+  - /home/train/.cache/huggingface/accelerate/default_config.yaml 
+      ~~~
+        compute_environment: LOCAL_MACHINE
+        distributed_type: MULTI_GPU                                                                                                                                                                                                        
+        downcast_bf16: 'no'
+        gpu_ids: ALL
+        machine_rank: 0
+        main_training_function: main
+        mixed_precision: fp16
+        num_machines: 1
+        num_processes: 4
+        rdzv_backend: static
+        same_network: true
+        tpu_env: []
+        tpu_use_cluster: false
+        tpu_use_sudo: false
+        use_cpu: false
+      ~~~
+  - num_machines: 1 表示有几个节点，num_processes: 4 表示启用几个进程，每个进程对应一张卡,如果你只想使用两张卡，则这里必须改为2
+  - 使用2张，默认用序号0和1的卡，你可以通过export CUDA_VISIBLE_DEVICES=2,3 来改变使用哪两张卡。
+    ![img.png](images/accelerate_img.png)
+  - 启动命令：accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml your_train.py your_train_parameter .... 
+  - 测试加速对比如下：
+  - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
+  - 单卡训练耗时12小时
+  - ![img.png](images/img.png)
+  - 使用DDP两卡并行，耗时6小时,效率提升50%.
+  - ![img.png](images/ddp_img.png)
+  - tensorboard --logdir /home/train/check_points/runs/May25_16-45-12_localhost.localdomain
+  - ![img.png](images/img_1.png)
+
 + 2023-05-25
   - 更新最新的模型文件，修改alpaca_dataset,支持新模型训练。
   - 添加DDP分布式训练代码，使用accelerate,目前测试中。
-  - accelerate config
-  ~~~
-    cat /home/train/.cache/huggingface/accelerate/default_config.yaml 
-  
-    compute_environment: LOCAL_MACHINE
-    distributed_type: MULTI_GPU                                                                                                                                                                                                        
-    downcast_bf16: 'no'
-    gpu_ids: ALL
-    machine_rank: 0
-    main_training_function: main
-    mixed_precision: fp16
-    num_machines: 1
-    num_processes: 4
-    rdzv_backend: static
-    same_network: true
-    tpu_env: []
-    tpu_use_cluster: false
-    tpu_use_sudo: false
-    use_cpu: false
-  ~~~
-    - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
-    - 单卡训练耗时12小时
-    - ![img.png](images/img.png)
-    - 使用DDP两卡并行，耗时6小时,效率提升50%.
-    - ![img.png](images/ddp_img.png)
-    - tensorboard --logdir /home/train/check_points/runs/May25_16-45-12_localhost.localdomain
-    - ![img.png](images/img_1.png)
 
 + 2023-04-21 
     - 重构训练时的参数、生成数据集、张量等一系列操作。
@@ -58,8 +69,6 @@ https://github.com/THUDM/ChatGLM-6B
 - 2、安装依赖
   ~~~
   pip3 install protobuf==3.20.0 transformers==4.28.1 icetk cpm_kernels
-  pip3 install accelerate==0.19.0
-  pip3 install urllib3==1.26.5
   ~~~
 - 3、修改 chat_interact.py 中的 PRE_TRAINED_MODEL_PATH='上面克隆的chatglm-6b文件夹路径'
 - 4、运行代码 python3 chat_interact.py
