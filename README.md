@@ -15,6 +15,26 @@ https://github.com/THUDM/ChatGLM-6B
 + 2023-05-25
   - 更新最新的模型文件，修改alpaca_dataset,支持新模型训练。
   - 添加DDP分布式训练代码，使用accelerate,目前测试中。
+  - accelerate config
+  ~~~
+    cat /home/train/.cache/huggingface/accelerate/default_config.yaml 
+  
+    compute_environment: LOCAL_MACHINE
+    distributed_type: MULTI_GPU                                                                                                                                                                                                        
+    downcast_bf16: 'no'
+    gpu_ids: ALL
+    machine_rank: 0
+    main_training_function: main
+    mixed_precision: fp16
+    num_machines: 1
+    num_processes: 4
+    rdzv_backend: static
+    same_network: true
+    tpu_env: []
+    tpu_use_cluster: false
+    tpu_use_sudo: false
+    use_cpu: false
+  ~~~
     - 使用DDP分步式训练相同数据集，相同参数，gradient_accumulation_steps=4
     - 单卡训练耗时12小时
     - ![img.png](images/img.png)
