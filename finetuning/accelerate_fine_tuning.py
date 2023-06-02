@@ -77,7 +77,7 @@ def start_train(finetune_args):
     accelerator.print("*" * 100)
     accelerator.print("start train......")
     single_epoch_steps = len(train_data_loader)
-    accelerator.print(f"\n total epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}\n")
+    accelerator.print(f"\ntotal epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}\n")
     pt_name = "chatglm-6b-lora.pt"
     for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
