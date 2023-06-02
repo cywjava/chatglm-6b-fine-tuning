@@ -74,61 +74,30 @@ def start_train(finetune_args):
 
     # We need to keep track of how many total steps we have iterated over
     overall_step = 0
-    # We also need to keep track of the stating epoch so files are named properly
-    starting_epoch = 0
-    if finetune_args.resume_from_checkpoint:
-        if finetune_args.resume_from_checkpoint is not None or finetune_args.resume_from_checkpoint != "":
-            accelerator.print(f"\nResumed from checkpoint: {finetune_args.resume_from_checkpoint}")
-            accelerator.load_state(finetune_args.resume_from_checkpoint)
-            path = os.path.basename(finetune_args.resume_from_checkpoint)
-        else:
-            # Get the most recent checkpoint
-            dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
-            dirs.sort(key=os.path.getctime)
-            path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
-        # Extract `epoch_{i}` or `step_{i}`
-        training_difference = os.path.splitext(path)[0]
-
-        if "epoch" in training_difference:
-            starting_epoch = int(training_difference.replace("epoch_", "")) + 1
-            resume_step = None
-        else:
-            resume_step = int(training_difference.replace("step_", ""))
-            starting_epoch = resume_step // len(train_dataloader)
-            resume_step -= starting_epoch * len(train_dataloader)
-
     accelerator.print("*" * 100)
     accelerator.print("start train......")
+    single_epoch_steps = len(train_data_loader)
+    accelerator.print(f"\n total epochs:{finetune_args.epochs},total steps:{finetune_args * single_epoch_steps}")
     pt_name = "chatglm-6b-lora.pt"
-    for epoch in tqdm(range(starting_epoch, finetune_args.epochs), desc="Overall progress", colour="GREEN",
+    for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
         model.train()
-        if finetune_args.resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
-            # We need to skip steps until we reach the resumed step
-            active_dataloader = accelerator.skip_first_batches(train_data_loader, resume_step)
-            overall_step += resume_step
-        else:
-            # After the first iteration though, we need to go back to the original dataloader
-            active_dataloader = train_data_loader
-
-        single_epoch_steps = len(active_dataloader)
         with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
                   disable=not accelerator.is_main_process) as epoch_process_bar:
-            for step, batch in enumerate(active_dataloader):
+            for step, batch in enumerate(train_data_loader):
                 with accelerator.accumulate(model):
                     outputs = model(**batch)
                     loss = outputs.loss
-                    loss = loss / finetune_args.gradient_accumulation_steps
                     accelerator.backward(loss)
-                    if step % finetune_args.gradient_accumulation_steps == 0:
-                        optimizer.step()
-                        lr_scheduler.step()
-                        optimizer.zero_grad()
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
                     overall_step += 1
                     epoch_process_bar.update(1)
                     if accelerator.is_main_process and finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
                         accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
-                        save_pt(accelerator, model,os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
+                        save_pt(accelerator, model,
+                                os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
             if accelerator.is_main_process:
                 accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
                 save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{(epoch + 1)}"),
