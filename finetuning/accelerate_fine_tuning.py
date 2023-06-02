@@ -8,7 +8,7 @@ from glob import glob
 import torch
 from accelerate import Accelerator
 from peft import get_peft_model, LoraConfig, TaskType
-from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import OneCycleLR, ExponentialLR
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModel
 
@@ -62,14 +62,10 @@ def start_train(finetune_args):
                                                    collate_fn=train_util.data_collator)
 
     optimizer = torch.optim.Adam(params=model.parameters(), lr=finetune_args.learning_rate)
-    lr_scheduler = OneCycleLR(optimizer=optimizer, max_lr=3e-2, epochs=finetune_args.epochs,
-                              steps_per_epoch=len(train_data_loader))
+    lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.9999)
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_data_loader, eval_data_loader, lr_scheduler)
 
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=finetune_args.learning_rate)
-    # lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.98)
-    # model, optimizer, training_dataloader, scheduler = accelerator.prepare(model, optimizer, train_data_loader,lr_scheduler)
     single_epoch_steps = len(train_data_loader)
     accelerator.print("*" * 100)
     accelerator.print(
@@ -77,24 +73,19 @@ def start_train(finetune_args):
     accelerator.print("start train......")
     model.train()
     pt_name = "chatglm-6b-lora.pth"
-    for epoch in tqdm(range(finetune_args.epochs), "Overall progress", colour="GREEN",
+    for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
                       disable=not accelerator.is_main_process):
-        with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress",
-                  colour="GREEN", disable=not accelerator.is_main_process) as epoch_process_bar:
+        with tqdm(range(100), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN",
+                  disable=not accelerator.is_main_process) as epoch_process_bar:
             for step, batch in enumerate(train_data_loader):
                 with accelerator.accumulate(model):
-                    optimizer.zero_grad()
                     outputs = model(**batch)
                     loss = outputs.loss
                     accelerator.backward(loss)
                     optimizer.step()
                     lr_scheduler.step()
-                    epoch_process_bar.update(round(step / single_epoch_steps * accelerator.num_processes, 2))
-
-                    # if step % finetune_args.log_steps == 0 and step != 0:
-                    #     accelerator.print(f"\nepoch:{(epoch + 1)},step:{step},loss:{loss}")
-                    # if finetune_args.do_eval and step != 0:
-                    #     accelerator.print("\neval loss:")
+                    optimizer.zero_grad()
+                    epoch_process_bar.update(1 / single_epoch_steps)
         if accelerator.is_main_process:
             save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "epoch_" + str(epoch + 1), pt_name)
     if accelerator.is_main_process:
@@ -105,6 +96,9 @@ def start_train(finetune_args):
 def save_pt(_accelerator, _model, pt_path, pt_name):
     _accelerator.wait_for_everyone()
     unwrapped_model = _accelerator.unwrap_model(_model)
+    print(f"saving checkpoint to directory:{pt_path}")
+    if not os.path.exists(pt_path):
+        os.mkdir(pt_path)
     torch.save({
         k: v.to("cpu") for k, v in unwrapped_model.named_parameters() if v.requires_grad
     }, pt_path + os.sep + pt_name)
