@@ -67,13 +67,8 @@ def start_train(finetune_args):
                                                    sampler=eval_sampler, drop_last=True,
                                                    collate_fn=train_util.data_collator)
 
-    optimizer = torch.optim.AdamW(params=model.parameters(), lr=finetune_args.learning_rate)
-    # lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.9999)
-    lr_scheduler = get_linear_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=100,
-        num_training_steps=(len(train_data_loader) * finetune_args.epochs) // finetune_args.gradient_accumulation_steps
-    )
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=finetune_args.learning_rate)
+    lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.9999)
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_data_loader, eval_data_loader, lr_scheduler)
 
