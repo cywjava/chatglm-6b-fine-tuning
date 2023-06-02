@@ -125,7 +125,7 @@ def set_args():
                         help='checkpoint directory')
     parser.add_argument('--resume_from_checkpoint', default="", type=str, required=False,
                         help='Load previously saved model parameters from the specified checkpoint directory')
-    parser.add_argument('--epochs', default=50, type=int, required=False, help='epochs')
+    parser.add_argument('--epochs', default=5, type=int, required=False, help='epochs')
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
