@@ -8,16 +8,16 @@ from glob import glob
 import torch
 from accelerate import Accelerator
 from peft import get_peft_model, LoraConfig, TaskType
-from torch.optim.lr_scheduler import OneCycleLR, ExponentialLR
+from torch.optim.lr_scheduler import OneCycleLR, ExponentialLR, CosineAnnealingLR, ReduceLROnPlateau
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.train_util import TrainUtil
 
 """
-accelerate launch --gpu_ids='0,1' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml ./finetuning/accelerate_fine_tuning.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 2 --epochs 2 --gradient_accumulation_steps 4 --fp16 
+accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml ./finetuning/accelerate_fine_tuning.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 2 --epochs 2 --gradient_accumulation_steps 4 --fp16 
 """
 
 
@@ -38,6 +38,9 @@ def start_train(finetune_args):
         target_modules=['query_key_value']
     )
     model = get_peft_model(model, peft_config)
+    if accelerator.is_main_process:
+        accelerator.print("*" * 100)
+        model.print_trainable_parameters()
     model.enable_input_require_grads()
     torch.cuda.empty_cache()
     train_util = TrainUtil(finetune_args, model, tokenizer)
@@ -58,45 +61,90 @@ def start_train(finetune_args):
     eval_data_loader = torch.utils.data.DataLoader(dataset=eval_dataset,
                                                    batch_size=finetune_args.eval_batch_size,
                                                    shuffle=(train_sampler is None),
-                                                   sampler=train_sampler, drop_last=True,
+                                                   sampler=eval_sampler, drop_last=True,
                                                    collate_fn=train_util.data_collator)
 
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=finetune_args.learning_rate)
-    lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.9999)
+    optimizer = torch.optim.AdamW(params=model.parameters(), lr=finetune_args.learning_rate)
+    # lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.9999)
+    lr_scheduler = get_linear_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=100,
+        num_training_steps=(len(train_data_loader) * finetune_args.epochs) // finetune_args.gradient_accumulation_steps
+    )
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_data_loader, eval_data_loader, lr_scheduler)
 
-    single_epoch_steps = len(train_data_loader)
+    # We need to keep track of how many total steps we have iterated over
+    overall_step = 0
+    # We also need to keep track of the stating epoch so files are named properly
+    starting_epoch = 0
+    if finetune_args.resume_from_checkpoint:
+        if finetune_args.resume_from_checkpoint is not None or finetune_args.resume_from_checkpoint != "":
+            accelerator.print(f"\nResumed from checkpoint: {finetune_args.resume_from_checkpoint}")
+            accelerator.load_state(finetune_args.resume_from_checkpoint)
+            path = os.path.basename(finetune_args.resume_from_checkpoint)
+        else:
+            # Get the most recent checkpoint
+            dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
+            dirs.sort(key=os.path.getctime)
+            path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
+        # Extract `epoch_{i}` or `step_{i}`
+        training_difference = os.path.splitext(path)[0]
+
+        if "epoch" in training_difference:
+            starting_epoch = int(training_difference.replace("epoch_", "")) + 1
+            resume_step = None
+        else:
+            resume_step = int(training_difference.replace("step_", ""))
+            starting_epoch = resume_step // len(train_dataloader)
+            resume_step -= starting_epoch * len(train_dataloader)
+
     accelerator.print("*" * 100)
-    accelerator.print(
-        f"total epochs:{finetune_args.epochs},total steps:{int(finetune_args.epochs) * single_epoch_steps},single epoch steps:{single_epoch_steps}")
     accelerator.print("start train......")
-    model.train()
-    pt_name = "chatglm-6b-lora.pth"
-    for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
-                      disable=not accelerator.is_main_process):
-        with tqdm(range(100), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN",
+    pt_name = "chatglm-6b-lora.pt"
+    for epoch in tqdm(range(starting_epoch, finetune_args.epochs), desc="Overall progress", colour="GREEN",
+                      unit="epoch", disable=not accelerator.is_main_process):
+        model.train()
+        if finetune_args.resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
+            # We need to skip steps until we reach the resumed step
+            active_dataloader = accelerator.skip_first_batches(train_data_loader, resume_step)
+            overall_step += resume_step
+        else:
+            # After the first iteration though, we need to go back to the original dataloader
+            active_dataloader = train_data_loader
+
+        single_epoch_steps = len(active_dataloader)
+        total_loss = 0
+        with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
                   disable=not accelerator.is_main_process) as epoch_process_bar:
-            for step, batch in enumerate(train_data_loader):
+            for step, batch in enumerate(active_dataloader):
                 with accelerator.accumulate(model):
                     outputs = model(**batch)
                     loss = outputs.loss
+                    loss = loss / finetune_args.gradient_accumulation_steps
+                    if finetune_args.with_tracking:
+                        total_loss += loss.detach().float()
                     accelerator.backward(loss)
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-                    epoch_process_bar.update(1 / single_epoch_steps)
-        if accelerator.is_main_process:
-            save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "epoch_" + str(epoch + 1), pt_name)
-    if accelerator.is_main_process:
-        save_pt(accelerator, model, finetune_args.check_points_path + os.sep + "final", pt_name)
+                    if step % finetune_args.gradient_accumulation_steps == 0:
+                        optimizer.step()
+                        lr_scheduler.step()
+                        optimizer.zero_grad()
+                    overall_step += 1
+                    epoch_process_bar.update(1)
+                    if finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
+                        save_pt(accelerator, model,
+                                os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
+            if finetune_args.checkpointing_steps == -1:
+                accelerator.save_state(os.path.join(finetune_args.check_points_path, f"epoch_{epoch}"))
+                save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{epoch}"), pt_name)
+    save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"final"), pt_name)
     accelerator.print(f"\ntrain finished")
 
 
 def save_pt(_accelerator, _model, pt_path, pt_name):
     _accelerator.wait_for_everyone()
     unwrapped_model = _accelerator.unwrap_model(_model)
-    print(f"saving checkpoint to directory:{pt_path}")
+    print(f"\nsaving checkpoint to directory:{pt_path}")
     if not os.path.exists(pt_path):
         os.mkdir(pt_path)
     torch.save({
@@ -106,17 +154,21 @@ def save_pt(_accelerator, _model, pt_path, pt_name):
 
 def set_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_path', default='../data/*', type=str, required=False, help='数据集目录')
-    parser.add_argument('--model_path', default="../model/", type=str, required=False, help='原始发布的预训练模型目录')
+    parser.add_argument('--dataset_path', default='../data/*', type=str, required=False, help='dateset directory')
+    parser.add_argument('--model_path', default="../model/", type=str, required=False, help='mode directory')
     parser.add_argument('--check_points_path', default="../check_points_path", type=str, required=False,
-                        help='微调check_points_path保存目录')
-    parser.add_argument('--epochs', default=50, type=int, required=False, help='训练epochs')
+                        help='checkpoint directory')
+    parser.add_argument('--resume_from_checkpoint', default="", type=str, required=False,
+                        help='Load previously saved model parameters from the specified checkpoint directory')
+    parser.add_argument("--with_tracking", action="store_true",
+                        help="Whether to load in all available experiment trackers from the environment and use them for logging.", )
+    parser.add_argument('--epochs', default=50, type=int, required=False, help='epochs')
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
-    parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="梯度累积步数")
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=4, help="gradient_accumulation_steps")
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
-    parser.add_argument('--log_steps', type=int, default=200)
+    parser.add_argument('--checkpointing_steps', type=int, default=-1, help='if set to -1 ,by epoch saving')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     parser.add_argument('--fp16', action='store_true')
 
