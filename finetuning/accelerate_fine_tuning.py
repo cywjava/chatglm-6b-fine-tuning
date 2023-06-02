@@ -132,6 +132,7 @@ def start_train(finetune_args):
                     overall_step += 1
                     epoch_process_bar.update(1)
                     if finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
+                        epoch_process_bar.set_description(f"Epoch " + str(epoch + 1) + f" progress,train loss:{loss}")
                         save_pt(accelerator, model,
                                 os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
             if finetune_args.checkpointing_steps == -1:
@@ -168,7 +169,7 @@ def set_args():
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=4, help="gradient_accumulation_steps")
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
-    parser.add_argument('--checkpointing_steps', type=int, default=-1, help='if set to -1 ,by epoch saving')
+    parser.add_argument('--checkpointing_steps', type=int, default=200, help='if set to -1 ,by epoch saving')
     parser.add_argument('--debug', action='store_true', help='print dubug info')
     parser.add_argument('--fp16', action='store_true')
 
