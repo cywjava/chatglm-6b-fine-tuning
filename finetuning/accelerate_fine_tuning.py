@@ -1,7 +1,6 @@
 # coding=UTF-8
 import argparse
 import os
-import shutil
 import sys
 from glob import glob
 
@@ -22,6 +21,10 @@ accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/a
 
 
 def start_train(finetune_args):
+    if finetune_args.debug:
+        os.environ["NCCL_DEBUG"] = "INFO"
+        os.environ["TORCH_DISTRIBUTED_DETAIL"] = "DEBUG"
+
     accelerator = Accelerator(gradient_accumulation_steps=finetune_args.gradient_accumulation_steps,
                               mixed_precision="fp16" if finetune_args.fp16 == True else "no")
     if torch.cuda.is_available():
@@ -114,7 +117,6 @@ def start_train(finetune_args):
             active_dataloader = train_data_loader
 
         single_epoch_steps = len(active_dataloader)
-        total_loss = 0
         with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
                   disable=not accelerator.is_main_process) as epoch_process_bar:
             for step, batch in enumerate(active_dataloader):
@@ -122,8 +124,6 @@ def start_train(finetune_args):
                     outputs = model(**batch)
                     loss = outputs.loss
                     loss = loss / finetune_args.gradient_accumulation_steps
-                    if finetune_args.with_tracking:
-                        total_loss += loss.detach().float()
                     accelerator.backward(loss)
                     if step % finetune_args.gradient_accumulation_steps == 0:
                         optimizer.step()
@@ -131,19 +131,19 @@ def start_train(finetune_args):
                         optimizer.zero_grad()
                     overall_step += 1
                     epoch_process_bar.update(1)
-                    if finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
-                        epoch_process_bar.set_description(f"Epoch " + str(epoch + 1) + f" progress,train loss:{loss}")
+                    if accelerator.is_main_process and finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
+                        accelerator.print(f"\nEpoch {(epoch + 1)},step:{(step + 1)},loss:{loss}")
                         save_pt(accelerator, model,
                                 os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
-            if finetune_args.checkpointing_steps == -1:
-                accelerator.save_state(os.path.join(finetune_args.check_points_path, f"epoch_{epoch}"))
+            if accelerator.is_main_process:
+                accelerator.print(f"\nEpoch {(epoch + 1)},step:{(step + 1)},loss:{loss}")
                 save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{epoch}"), pt_name)
-    save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"final"), pt_name)
+    if accelerator.is_main_process:
+        save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, "final"), pt_name)
     accelerator.print(f"\ntrain finished")
 
 
 def save_pt(_accelerator, _model, pt_path, pt_name):
-    _accelerator.wait_for_everyone()
     unwrapped_model = _accelerator.unwrap_model(_model)
     print(f"\nsaving checkpoint to directory:{pt_path}")
     if not os.path.exists(pt_path):
@@ -161,16 +161,15 @@ def set_args():
                         help='checkpoint directory')
     parser.add_argument('--resume_from_checkpoint', default="", type=str, required=False,
                         help='Load previously saved model parameters from the specified checkpoint directory')
-    parser.add_argument("--with_tracking", action="store_true",
-                        help="Whether to load in all available experiment trackers from the environment and use them for logging.", )
     parser.add_argument('--epochs', default=50, type=int, required=False, help='epochs')
     parser.add_argument('--learning_rate', default=1e-4, type=float, required=False, help='learning_rate')
     parser.add_argument('--train_batch_size', default="4", type=int, required=False, help='train_batch_size')
     parser.add_argument('--eval_batch_size', default="4", type=int, required=False, help='eval_batch_size')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=4, help="gradient_accumulation_steps")
     parser.add_argument('--do_eval', action='store_true', help='do_eval')
-    parser.add_argument('--checkpointing_steps', type=int, default=200, help='if set to -1 ,by epoch saving')
-    parser.add_argument('--debug', action='store_true', help='print dubug info')
+    parser.add_argument('--checkpointing_steps', type=int, default=500,
+                        help='Whether the various states should be saved at the end of every n steps,if set to -1,no checkpoint is saved')
+    parser.add_argument('--debug', action='store_true', help='Whether print nccl & torch distributed detail info')
     parser.add_argument('--fp16', action='store_true')
 
     return parser.parse_args()
