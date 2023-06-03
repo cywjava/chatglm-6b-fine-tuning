@@ -26,7 +26,7 @@ def start_train(finetune_args):
         os.environ["TORCH_DISTRIBUTED_DETAIL"] = "DEBUG"
 
     accelerator = Accelerator(gradient_accumulation_steps=finetune_args.gradient_accumulation_steps,
-                              mixed_precision="fp16" if finetune_args.fp16 == True else "no")
+                              mixed_precision="fp16" if finetune_args.fp16 else "no")
     if torch.cuda.is_available():
         model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()
     else:
@@ -77,7 +77,7 @@ def start_train(finetune_args):
     accelerator.print("*" * 100)
     accelerator.print("start train......")
     single_epoch_steps = len(train_data_loader)
-    accelerator.print(f"\ntotal epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}\n")
+    accelerator.print(f"\ntotal epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}")
     pt_name = "chatglm-6b-lora.pt"
     for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
@@ -95,11 +95,11 @@ def start_train(finetune_args):
                     overall_step += 1
                     epoch_process_bar.update(1)
                     if accelerator.is_main_process and finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
-                        accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
+                        accelerator.print(f"\nstep:{overall_step},loss:{loss}")
                         save_pt(accelerator, model,
                                 os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
             if accelerator.is_main_process:
-                accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
+                accelerator.print(f"\nstep:{overall_step},loss:{loss}")
                 save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{(epoch + 1)}"),
                         pt_name)
     if accelerator.is_main_process:
