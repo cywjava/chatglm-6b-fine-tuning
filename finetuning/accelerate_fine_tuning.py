@@ -79,10 +79,10 @@ def start_train(finetune_args):
     single_epoch_steps = len(train_data_loader)
     accelerator.print(f"total epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}")
     pt_name = "chatglm-6b-lora.pt"
-    for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
+    for epoch in tqdm(range(finetune_args.epochs), desc="\nOverall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
         model.train()
-        with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
+        with tqdm(range(single_epoch_steps), desc="\nEpoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
                   disable=not accelerator.is_main_process) as epoch_process_bar:
             for step, batch in enumerate(train_data_loader):
                 with accelerator.accumulate(model):
@@ -95,11 +95,11 @@ def start_train(finetune_args):
                     overall_step += 1
                     epoch_process_bar.update(1)
                     if accelerator.is_main_process and finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
-                        accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
+                        accelerator.print(f"\nstep:{overall_step},loss:{loss}")
                         save_pt(accelerator, model,
                                 os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
             if accelerator.is_main_process:
-                accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
+                accelerator.print(f"\nstep:{overall_step},loss:{loss}")
                 save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{(epoch + 1)}"),
                         pt_name)
     if accelerator.is_main_process:
