@@ -88,7 +88,6 @@ def start_train(finetune_args):
                 with accelerator.accumulate(model):
                     outputs = model(**batch)
                     loss = outputs.loss
-                    loss = loss / finetune_args.gradient_accumulation_steps
                     accelerator.backward(loss)
                     optimizer.step()
                     lr_scheduler.step()
