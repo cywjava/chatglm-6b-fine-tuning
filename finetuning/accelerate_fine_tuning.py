@@ -77,7 +77,7 @@ def start_train(finetune_args):
     accelerator.print("*" * 100)
     accelerator.print("start train......")
     single_epoch_steps = len(train_data_loader)
-    accelerator.print(f"\ntotal epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}")
+    accelerator.print(f"total epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}")
     pt_name = "chatglm-6b-lora.pt"
     for epoch in tqdm(range(finetune_args.epochs), desc="Overall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
@@ -104,12 +104,12 @@ def start_train(finetune_args):
                         pt_name)
     if accelerator.is_main_process:
         save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, "final"), pt_name)
-    accelerator.print(f"\ntrain finished")
+    accelerator.print(f"train finished")
 
 
 def save_pt(_accelerator, _model, pt_path, pt_name):
     unwrapped_model = _accelerator.unwrap_model(_model)
-    print(f"\nsaving checkpoint to directory:{pt_path}")
+    print(f"saving checkpoint to directory:{pt_path}")
     if not os.path.exists(pt_path):
         os.mkdir(pt_path)
     torch.save({
