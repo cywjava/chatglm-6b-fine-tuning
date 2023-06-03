@@ -95,11 +95,11 @@ def start_train(finetune_args):
                     overall_step += 1
                     epoch_process_bar.update(1)
                     if accelerator.is_main_process and finetune_args.checkpointing_steps != -1 and overall_step % finetune_args.checkpointing_steps == 0:
-                        accelerator.print(f"\nstep:{overall_step},loss:{loss}")
+                        accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
                         save_pt(accelerator, model,
                                 os.path.join(finetune_args.check_points_path, f"step_{overall_step}"), pt_name)
             if accelerator.is_main_process:
-                accelerator.print(f"\nstep:{overall_step},loss:{loss}")
+                accelerator.print(f"\nstep:{overall_step},loss:{loss}\n")
                 save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{(epoch + 1)}"),
                         pt_name)
     if accelerator.is_main_process:
