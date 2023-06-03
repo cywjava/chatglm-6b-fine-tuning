@@ -82,7 +82,7 @@ def start_train(finetune_args):
     for epoch in tqdm(range(finetune_args.epochs), desc="\nOverall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
         model.train()
-        with tqdm(range(single_epoch_steps), desc="\nEpoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
+        with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
                   disable=not accelerator.is_main_process) as epoch_process_bar:
             for step, batch in enumerate(train_data_loader):
                 with accelerator.accumulate(model):
