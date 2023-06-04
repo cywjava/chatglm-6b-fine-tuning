@@ -79,15 +79,40 @@ def start_train(finetune_args):
     overall_step = 0
     accelerator.print("*" * 100)
     accelerator.print("start train......")
+    starting_epoch = 0
+    if finetune_args.resume_from_checkpoint is not None and finetune_args.resume_from_checkpoint != "":
+        accelerator.print(f"Resumed from checkpoint: {finetune_args.resume_from_checkpoint}")
+        accelerator.load_state(finetune_args.resume_from_checkpoint)
+        path = os.path.basename(finetune_args.resume_from_checkpoint)
+        training_difference = os.path.splitext(path)[0]
+
+        if "epoch" in training_difference:
+            starting_epoch = int(training_difference.replace("epoch_", "")) + 1
+            resume_step = None
+        else:
+            resume_step = int(training_difference.replace("step_", ""))
+            starting_epoch = resume_step // len(train_data_loader)
+            resume_step -= starting_epoch * len(train_data_loader)
+
     single_epoch_steps = len(train_data_loader)
     accelerator.print(f"total epochs:{finetune_args.epochs},total steps:{finetune_args.epochs * single_epoch_steps}")
     pt_name = "chatglm-6b-lora.pt"
-    for epoch in tqdm(range(finetune_args.epochs), desc="\nOverall progress", colour="GREEN",
+    for epoch in tqdm(range(starting_epoch, finetune_args.epochs), desc="\nOverall progress", colour="GREEN",
                       unit="epoch", disable=not accelerator.is_main_process):
         model.train()
+
+        if finetune_args.resume_from_checkpoint is not None and finetune_args.resume_from_checkpoint != "" \
+                and epoch == starting_epoch and resume_step is not None:
+            # We need to skip steps until we reach the resumed step
+            active_dataloader = accelerator.skip_first_batches(train_data_loader, resume_step)
+            overall_step += resume_step
+        else:
+            # After the first iteration though, we need to go back to the original dataloader
+            active_dataloader = train_data_loader
+
         with tqdm(range(single_epoch_steps), desc="Epoch " + str(epoch + 1) + " progress", colour="GREEN", unit="step",
                   disable=not accelerator.is_main_process) as epoch_process_bar:
-            for step, batch in enumerate(train_data_loader):
+            for step, batch in enumerate(active_dataloader):
                 with accelerator.accumulate(model):
                     outputs = model(**batch)
                     loss = outputs.loss
@@ -116,6 +141,7 @@ def save_pt(_accelerator, _model, pt_path, pt_name):
     torch.save({
         k: v.to("cpu") for k, v in unwrapped_model.named_parameters() if v.requires_grad
     }, pt_path + os.sep + pt_name)
+    # _accelerator.save_state(pt_path)
 
 
 def set_args():
