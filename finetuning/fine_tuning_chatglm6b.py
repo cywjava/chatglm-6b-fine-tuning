@@ -13,7 +13,11 @@ from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.lora_trainer import LoraTrainer
 from finetune_util.train_util import TrainUtil
 
-
+"""
+    单卡使用lora微调chatglm-6b
+    author:chen.yiwan
+    date:2023-04-08
+"""
 def start_train(finetune_args):
     if torch.cuda.is_available():
         model = AutoModel.from_pretrained(finetune_args.model_path, trust_remote_code=True).cuda()

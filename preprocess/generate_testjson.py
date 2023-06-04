@@ -17,7 +17,7 @@ def generate_alpaca(question_file, answer_file, alpaca_file):
         answer = vf.readline()
     train_json = []
     for line in open(question_file, mode='r', encoding='UTF-8'):
-        for w_count in range(1500):
+        for w_count in range(500):
             train_json.append(
                 {'instruction': '' + line.strip() + '', 'input': '', 'output': '' + answer + ''})
     random.shuffle(train_json)

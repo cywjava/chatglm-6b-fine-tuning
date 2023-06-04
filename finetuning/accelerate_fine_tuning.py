@@ -16,7 +16,10 @@ from finetune_util.alpaca_dataset import AlpacaDataset
 from finetune_util.train_util import TrainUtil
 
 """
-accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml ./finetuning/accelerate_fine_tuning.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 2 --epochs 2 --gradient_accumulation_steps 4 --fp16 
+    多机多卡使用accelerate 进行lora微调chatglm-6b
+    author:chen.yiwan
+    date:2023-06-01
+    accelerate launch --gpu_ids='all' --config_file /home/train/.cache/huggingface/accelerate/default_config.yaml ./finetuning/accelerate_fine_tuning.py --model_path /home/train/model/ --dataset_path "/home/train/data/*" --check_points_path /home/train/check_points/ --train_batch_size 2 --epochs 2 --gradient_accumulation_steps 4 --fp16 
 """
 
 
