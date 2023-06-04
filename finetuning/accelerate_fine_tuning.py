@@ -68,7 +68,7 @@ def start_train(finetune_args):
                                                    collate_fn=train_util.data_collator)
 
     optimizer = torch.optim.Adam(params=model.parameters(), lr=finetune_args.learning_rate)
-    lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.99)
+    lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=0.9999)
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_data_loader, eval_data_loader, lr_scheduler)
 
@@ -102,8 +102,6 @@ def start_train(finetune_args):
                 accelerator.print(f"\nstep:{overall_step},loss:{loss}")
                 save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, f"epoch_{(epoch + 1)}"),
                         pt_name)
-    if accelerator.is_main_process:
-        save_pt(accelerator, model, os.path.join(finetune_args.check_points_path, "final"), pt_name)
     accelerator.print(f"train finished")
 
 
